@@ -14,7 +14,7 @@ use crate::game::map::{MapGrid, Tile};
 use crate::game::orders::BuildTower;
 use crate::game::combat::DamageKind;
 use crate::game::enemy::{Enemy, PathProgress};
-use crate::game::projectile::projectile_bundle;
+use crate::game::projectile::shell_bundle;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
@@ -39,6 +39,9 @@ pub struct Gun {
     pub damage: f32,
     pub kind: DamageKind,
     pub projectile_speed: f32,
+    /// Impact radius. Zero means single target — the mortar is the reason this
+    /// exists, and the reason a swarm wave has an answer that is not "more Flak".
+    pub splash: f32,
     pub reload: Timer,
 }
 
@@ -53,6 +56,7 @@ pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
             damage: stats.damage,
             kind: stats.damage_kind,
             projectile_speed: stats.projectile_speed,
+            splash: stats.splash,
             // `Repeating` and not `Once`: a battery that reloads forever needs
             // no state machine, just a timer that keeps wrapping.
             reload: Timer::from_seconds(stats.reload, TimerMode::Repeating),
@@ -102,12 +106,13 @@ fn fire_at_leader(
             continue;
         };
 
-        commands.spawn(projectile_bundle(
+        commands.spawn(shell_bundle(
             origin,
             entity,
             gun.damage,
             gun.kind,
             gun.projectile_speed,
+            gun.splash,
         ));
     }
 }

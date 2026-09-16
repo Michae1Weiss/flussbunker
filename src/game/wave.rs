@@ -25,10 +25,12 @@ pub(super) fn plugin(app: &mut App) {
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(
             Update,
-            start_wave
-                .run_if(in_state(Screen::Gameplay).and(input_just_pressed(KeyCode::Space))),
+            start_wave.run_if(in_state(Screen::Gameplay).and(input_just_pressed(KeyCode::Space))),
         )
-        .add_systems(FixedUpdate, (spawn_boats, finish_wave).chain().in_set(Sim::Spawn));
+        .add_systems(
+            FixedUpdate,
+            (spawn_boats, finish_wave).chain().in_set(Sim::Spawn),
+        );
 }
 
 #[derive(Resource, Debug)]
@@ -57,7 +59,12 @@ impl WaveState {
         if self.index >= WAVES.len() {
             return "—".to_string();
         }
-        format!("{}/{} {}", self.index + 1, WAVES.len(), WAVES[self.index].name)
+        format!(
+            "{}/{} {}",
+            self.index + 1,
+            WAVES.len(),
+            WAVES[self.index].name
+        )
     }
 }
 

@@ -1,162 +1,188 @@
-//! U-boats: the one mechanic this game has that Kingdom Rush does not.
+//! U-96: the boat you command.
 //!
-//! Design rationale, because it drove the whole architecture:
+//! ## What the playtest changed, and why
 //!
-//! A tower defense dies when optimal play is "build the known-best layout, then
-//! watch". Towers are a *pre-wave* decision; once the wave starts the player is
-//! a spectator. The u-boat pen adds a *mid-wave* decision layer — Kingdom Rush
-//! solves the same problem with heroes and spells.
+//! v1 made the u-boat a *purchase*: press U, wait 9 s invisibly, watch a
+//! counter, click water, wait 12 s more for it to arrive, get four homing shots
+//! at 2.4 tiles. Three findings killed it:
 //!
-//! The brief said the bunker "creates u-boats that help me defend". Taken
-//! literally — free boats spawning on a timer, fighting on their own — that
-//! makes the idle problem *worse*: more happens on screen while the player does
-//! less. So the same fiction is kept and the agency is put back in:
+//! * "Minen platzieren habe ich gedacht" — clicking water was bound to the
+//!   wrong verb. The hand expected *something happens at that tile*.
+//! * "I love torpedos" / best moment was an impact — the payoff is the hit, and
+//!   ~21 s of logistics bought ~4 of them.
+//! * Three rounds played without discovering that a second boat was possible —
+//!   a mechanic behind a keypress and a text counter does not exist.
 //!
-//! * they cost marks, so they compete with towers for the same budget;
-//! * they take time to build, so ordering one is a bet on the next wave;
-//! * the player picks the station tile and picks the moment;
-//! * they carry four torpedoes, then must sail home to rearm;
-//! * destroyers sink them.
+//! v2 therefore makes it a **persistent unit**, present from the first second:
 //!
-//! Same story, but every u-boat is now a decision with a cost and a risk.
+//! * No build step. You have U-96 from wave 1. Click water, it goes there.
+//! * **Torpedoes run straight down the channel.** They are not homing and have
+//!   no radius: they travel the water until they hit a hull or lose the river.
+//!   This one change does four jobs at once — firing over land becomes
+//!   structurally impossible, range can be generous without being boring, a
+//!   torpedo down a packed straight can hit several boats, and *the shape of
+//!   the river becomes the tactical map*. Long straights are firing lanes,
+//!   bends are dead water. The tile you pick finally matters.
+//! * **Dive** (`T`) makes you untouchable and blind. The cost is the 1.4 s trim
+//!   time — without it, permanently submerged would be free and the decision
+//!   would not exist.
+//! * **Veterancy** across waves, and losing the boat loses the rank. Permanent
+//!   progression is what makes a unit worth protecting.
+//!
+//! Note what is *not* here: no pen, no slots, no build timer, no second boat.
+//! Roughly 60 lines of v1 bookkeeping deleted, and the mechanic got better. The
+//! cheapest complexity to remove is the kind that was never fun.
 
 use bevy::prelude::*;
 
 use crate::balance::{
-    UBOAT_BUILD_SECONDS, UBOAT_COST, UBOAT_HEALTH, UBOAT_PEN_SLOTS, UBOAT_RANGE, UBOAT_SPEED,
-    UBOAT_TORPEDOES, UBOAT_TORPEDO_DAMAGE, UBOAT_TORPEDO_RELOAD, Z_UBOAT,
+    rank_for, TORPEDO_RUN, TORPEDO_SPEED, UBOAT_HEALTH, UBOAT_REARM_SECONDS,
+    UBOAT_REPLACEMENT_COST, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TRIM_SECONDS, Z_UBOAT,
 };
-use crate::game::combat::{DamageKind, Health};
+use crate::game::combat::{DamageKind, Health, Sunk};
 use crate::game::economy::Treasury;
 use crate::game::enemy::Enemy;
 use crate::game::map::RiverPath;
-use crate::game::orders::{LaunchUBoat, OrderUBoat};
-use crate::game::projectile::projectile_bundle;
+use crate::game::orders::{CommissionUBoat, MoveUBoat, ToggleTrim};
+use crate::game::projectile::torpedo_bundle;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
 pub(super) fn plugin(app: &mut App) {
-    app.init_resource::<UBoatPen>()
-        .add_systems(OnEnter(Screen::Gameplay), reset)
+    app.init_resource::<Flotilla>()
+        .add_systems(
+            OnEnter(Screen::Gameplay),
+            (reset, commission_first_boat).chain(),
+        )
         .add_systems(
             FixedUpdate,
             (
-                (build_uboats, launch_uboats).chain().in_set(Sim::Spawn),
+                (commission, obey_move_orders, obey_trim_orders).in_set(Sim::Spawn),
                 navigate.in_set(Sim::Movement),
-                fire_torpedoes.in_set(Sim::Targeting),
+                (rearm, fire_torpedoes).in_set(Sim::Targeting),
             ),
         )
-        .add_observer(free_slot_on_loss);
+        .add_observer(on_boat_lost)
+        .add_observer(on_kill_credit);
 }
 
-/// The pen. Durable state, one instance, no relationships: a `Resource`.
-#[derive(Resource, Debug)]
-pub struct UBoatPen {
-    pub slots: u8,
-    pub docked: u8,
-    pub at_sea: u8,
-    pub building: Option<Timer>,
+/// What survives the boat: the tally, and whether one is currently at sea.
+///
+/// Kills live here rather than on the entity precisely *because* the entity is
+/// destructible — and the rule is that a sinking wipes the record. Storing it
+/// on the boat would have made that rule automatic; storing it here makes it
+/// explicit, which is better, because "veterancy resets" is a design promise
+/// and design promises should be visible in the code that enforces them.
+#[derive(Resource, Default, Debug)]
+pub struct Flotilla {
+    pub kills: u32,
+    pub at_sea: bool,
+    /// Cost of the next boat. Free the first time.
+    pub replacement_cost: u32,
 }
 
-impl Default for UBoatPen {
-    fn default() -> Self {
-        Self {
-            slots: UBOAT_PEN_SLOTS,
-            docked: 1, // one boat ready at the start, so the mechanic is discoverable
-            at_sea: 0,
-            building: None,
-        }
-    }
-}
-
-impl UBoatPen {
-    pub fn total(&self) -> u8 {
-        self.docked + self.at_sea + self.building.is_some() as u8
-    }
+fn reset(mut flotilla: ResMut<Flotilla>) {
+    *flotilla = Flotilla {
+        kills: 0,
+        at_sea: false,
+        replacement_cost: UBOAT_REPLACEMENT_COST,
+    };
 }
 
 #[derive(Component)]
 pub struct UBoat;
 
+/// Dive state. A four-variant machine is worth spelling out here: the two
+/// transition states are not decoration, they *are* the cost of diving, and a
+/// bool plus a timer would hide that.
+#[derive(Component, Debug)]
+pub enum Trim {
+    Surfaced,
+    Submerging(Timer),
+    Submerged,
+    Surfacing(Timer),
+}
+
+impl Trim {
+    /// Only a fully submerged boat is safe from depth charges.
+    pub fn is_hittable(&self) -> bool {
+        !matches!(self, Trim::Submerged)
+    }
+
+    /// Only a fully surfaced boat can shoot. Diving to hide means giving up the
+    /// thing you came for — that tension is the mechanic.
+    pub fn can_fire(&self) -> bool {
+        matches!(self, Trim::Surfaced)
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Trim::Surfaced => "aufgetaucht",
+            Trim::Submerging(_) => "taucht...",
+            Trim::Submerged => "getaucht",
+            Trim::Surfacing(_) => "taucht auf...",
+        }
+    }
+}
+
 #[derive(Component)]
 pub struct Torpedoes {
-    pub remaining: u8,
+    pub loaded: u8,
     pub tube: Timer,
+    pub rearm: Timer,
 }
 
-/// Where this boat is on the river and where it wants to be.
-///
-/// U-boats travel the same `RiverPath` as the enemy, in the opposite
-/// direction. One path, two consumers, no second data structure.
+/// Position along the river, and where it has been ordered to.
 #[derive(Component)]
-pub struct Nav {
+pub struct Station {
     /// Waypoint currently being steered towards.
     pub index: usize,
-    /// Station to hold, as a river index.
-    pub station: usize,
-    pub returning: bool,
+    /// Ordered destination.
+    pub goal: usize,
 }
 
-fn reset(mut pen: ResMut<UBoatPen>) {
-    *pen = UBoatPen::default();
+fn commission_first_boat(mut orders: MessageWriter<CommissionUBoat>) {
+    // You start with a boat. Not a menu, not a counter, not a purchase — the
+    // unit you command is on screen before the first enemy is.
+    orders.write(CommissionUBoat { free: true });
 }
 
-fn build_uboats(
-    time: Res<Time>,
-    mut orders: MessageReader<OrderUBoat>,
-    mut pen: ResMut<UBoatPen>,
-    mut treasury: ResMut<Treasury>,
-) {
-    for _ in orders.read() {
-        if pen.building.is_some() || pen.total() >= pen.slots {
-            continue;
-        }
-        if treasury.try_spend(UBOAT_COST) {
-            pen.building = Some(Timer::from_seconds(UBOAT_BUILD_SECONDS, TimerMode::Once));
-        }
-    }
-
-    // `take`/`put back` instead of holding a mutable borrow across the check.
-    if let Some(mut timer) = pen.building.take() {
-        if timer.tick(time.delta()).just_finished() {
-            pen.docked += 1;
-        } else {
-            pen.building = Some(timer);
-        }
-    }
-}
-
-fn launch_uboats(
-    mut launches: MessageReader<LaunchUBoat>,
+fn commission(
+    mut orders: MessageReader<CommissionUBoat>,
     mut commands: Commands,
-    mut pen: ResMut<UBoatPen>,
+    mut flotilla: ResMut<Flotilla>,
+    mut treasury: ResMut<Treasury>,
     path: Res<RiverPath>,
 ) {
-    for launch in launches.read() {
-        if pen.docked == 0 {
+    for order in orders.read() {
+        if flotilla.at_sea {
             continue;
         }
-        pen.docked -= 1;
-        pen.at_sea += 1;
+        if !order.free && !treasury.try_spend(flotilla.replacement_cost) {
+            continue;
+        }
 
-        let last = path.points.len() - 1;
+        let dock = path.points.len() - 1;
+        let rank = rank_for(flotilla.kills);
+        flotilla.at_sea = true;
+
         commands.spawn((
-            Name::new("U-Boot"),
+            Name::new("U-96"),
             UBoat,
             Health::new(UBOAT_HEALTH),
+            Trim::Surfaced,
             Torpedoes {
-                remaining: UBOAT_TORPEDOES,
-                tube: Timer::from_seconds(UBOAT_TORPEDO_RELOAD, TimerMode::Repeating),
+                loaded: rank.torpedoes,
+                tube: Timer::from_seconds(rank.reload, TimerMode::Repeating),
+                rearm: Timer::from_seconds(UBOAT_REARM_SECONDS, TimerMode::Repeating),
             },
-            Nav {
-                // Leaves the bunker heading upstream, i.e. index decreasing.
-                index: last.saturating_sub(1),
-                station: launch.station.min(last),
-                returning: false,
+            Station {
+                index: dock,
+                goal: dock,
             },
             Sprite {
-                color: Color::srgb(0.30, 0.34, 0.38),
-                custom_size: Some(Vec2::new(10.0, 26.0)),
+                color: Color::srgb(0.34, 0.38, 0.42),
+                custom_size: Some(Vec2::new(12.0, 30.0)),
                 ..default()
             },
             Transform::from_translation(path.bunker_point().extend(Z_UBOAT)),
@@ -165,103 +191,206 @@ fn launch_uboats(
     }
 }
 
-/// Sail to the station, hold there, sail home when the tubes are empty.
-///
-/// Written as one system rather than three (outbound / holding / returning)
-/// because they share every line except which index is the goal. Three systems
-/// would need a state component, three queries and an ordering rule — a
-/// state machine bolted onto something that is already just "walk to an index".
+fn obey_move_orders(
+    mut orders: MessageReader<MoveUBoat>,
+    mut boats: Query<&mut Station, With<UBoat>>,
+) {
+    for order in orders.read() {
+        for mut station in &mut boats {
+            station.goal = order.station;
+        }
+    }
+}
+
+fn obey_trim_orders(
+    mut orders: MessageReader<ToggleTrim>,
+    mut boats: Query<&mut Trim, With<UBoat>>,
+) {
+    for _ in orders.read() {
+        for mut trim in &mut boats {
+            // Orders during a transition are ignored rather than queued. A
+            // queued dive that fires 1.4 s after you stopped wanting it is
+            // worse than no response at all.
+            *trim = match *trim {
+                Trim::Surfaced => {
+                    Trim::Submerging(Timer::from_seconds(UBOAT_TRIM_SECONDS, TimerMode::Once))
+                }
+                Trim::Submerged => {
+                    Trim::Surfacing(Timer::from_seconds(UBOAT_TRIM_SECONDS, TimerMode::Once))
+                }
+                Trim::Submerging(ref t) => Trim::Submerging(t.clone()),
+                Trim::Surfacing(ref t) => Trim::Surfacing(t.clone()),
+            };
+        }
+    }
+}
+
 fn navigate(
     time: Res<Time>,
     path: Res<RiverPath>,
-    mut commands: Commands,
-    mut pen: ResMut<UBoatPen>,
-    mut boats: Query<(Entity, &mut Transform, &mut Nav, &Torpedoes), With<UBoat>>,
+    mut boats: Query<(&mut Transform, &mut Station, &mut Trim, &mut Sprite), With<UBoat>>,
 ) {
     let step = time.delta_secs();
-    let last = path.points.len() - 1;
 
-    for (entity, mut transform, mut nav, torpedoes) in &mut boats {
-        if torpedoes.remaining == 0 {
-            nav.returning = true;
+    for (mut transform, mut station, mut trim, mut sprite) in &mut boats {
+        // Advance the dive state machine.
+        match &mut *trim {
+            Trim::Submerging(t) => {
+                if t.tick(time.delta()).just_finished() {
+                    *trim = Trim::Submerged;
+                }
+            }
+            Trim::Surfacing(t) => {
+                if t.tick(time.delta()).just_finished() {
+                    *trim = Trim::Surfaced;
+                }
+            }
+            Trim::Surfaced | Trim::Submerged => {}
         }
 
-        let goal = if nav.returning { last } else { nav.station };
+        // Depth is readable at a glance instead of via the HUD: a submerged
+        // boat is dim. One line of code, and the state is never a surprise.
+        sprite.color = match *trim {
+            Trim::Surfaced => Color::srgb(0.42, 0.47, 0.52),
+            Trim::Submerged => Color::srgb(0.16, 0.22, 0.30),
+            _ => Color::srgb(0.28, 0.34, 0.42),
+        };
 
-        // Reached home with empty tubes: dock, free the boat, keep the slot.
-        if nav.returning && nav.index >= last {
-            pen.at_sea = pen.at_sea.saturating_sub(1);
-            pen.docked += 1;
-            commands.entity(entity).despawn();
-            continue;
-        }
+        let speed = match *trim {
+            Trim::Surfaced => UBOAT_SPEED,
+            _ => UBOAT_SPEED * UBOAT_SUBMERGED_SPEED_FACTOR,
+        };
 
-        let target = path.points[nav.index];
+        let target = path.points[station.index];
         let position = transform.translation.truncate();
         let to_target = target - position;
-        let travel = UBOAT_SPEED * step;
+        let travel = speed * step;
 
         if to_target.length() <= travel {
+            // Standing on the current waypoint. Only *now* may the index step
+            // towards the goal — advancing it before the leg is sailed is what
+            // makes a boat park one tile short of the tile you clicked.
             transform.translation = target.extend(transform.translation.z);
-            // Step one waypoint towards the goal, in whichever direction that is.
-            if nav.index < goal {
-                nav.index += 1;
-            } else if nav.index > goal {
-                nav.index -= 1;
+            if station.index < station.goal {
+                station.index += 1;
+            } else if station.index > station.goal {
+                station.index -= 1;
+            } else {
+                continue;
             }
         } else {
             transform.translation += (to_target.normalize_or_zero() * travel).extend(0.0);
         }
 
         if to_target.length_squared() > f32::EPSILON {
-            transform.rotation = Quat::from_rotation_z(to_target.to_angle() - std::f32::consts::FRAC_PI_2);
+            transform.rotation =
+                Quat::from_rotation_z(to_target.to_angle() - std::f32::consts::FRAC_PI_2);
         }
     }
 }
 
-/// Torpedoes ignore armour — the entire reason a u-boat exists.
-fn fire_torpedoes(
+/// Reloading happens only at the bunker. That is the rhythm of the mechanic:
+/// sortie, spend, run home, sortie again — and deciding *when* to break off is
+/// the interesting part.
+fn rearm(
     time: Res<Time>,
-    mut commands: Commands,
-    mut boats: Query<(&Transform, &mut Torpedoes), With<UBoat>>,
-    enemies: Query<(Entity, &Transform), With<Enemy>>,
+    path: Res<RiverPath>,
+    flotilla: Res<Flotilla>,
+    mut boats: Query<(&Station, &mut Torpedoes), With<UBoat>>,
 ) {
-    for (transform, mut torpedoes) in &mut boats {
-        if torpedoes.remaining == 0 || !torpedoes.tube.tick(time.delta()).just_finished() {
+    let dock = path.points.len() - 1;
+    for (station, mut torpedoes) in &mut boats {
+        let capacity = rank_for(flotilla.kills).torpedoes;
+        if station.index < dock.saturating_sub(1) || torpedoes.loaded >= capacity {
+            torpedoes.rearm.reset();
             continue;
         }
-        let origin = transform.translation.truncate();
-        let target = enemies
-            .iter()
-            .filter(|(_, enemy)| {
-                origin.distance_squared(enemy.translation.truncate()) <= UBOAT_RANGE * UBOAT_RANGE
-            })
-            .min_by(|a, b| {
-                origin
-                    .distance_squared(a.1.translation.truncate())
-                    .total_cmp(&origin.distance_squared(b.1.translation.truncate()))
-            });
-
-        if let Some((entity, _)) = target {
-            torpedoes.remaining -= 1;
-            commands.spawn(projectile_bundle(
-                origin,
-                entity,
-                UBOAT_TORPEDO_DAMAGE,
-                DamageKind::Torpedo,
-                260.0,
-            ));
+        if torpedoes.rearm.tick(time.delta()).just_finished() {
+            torpedoes.loaded += 1;
         }
     }
 }
 
-/// A u-boat that sinks does not come back. The slot is freed, the boat is not.
-fn free_slot_on_loss(
-    sunk: On<crate::game::combat::Sunk>,
-    boats: Query<(), With<UBoat>>,
-    mut pen: ResMut<UBoatPen>,
+/// Fire straight up the channel.
+///
+/// The direction is taken from the river itself — the vector from this
+/// waypoint to the one upstream. So a boat parked mid-straight has a lane the
+/// length of that straight, and a boat sitting on a bend has almost none. No
+/// aiming UI, no target selection: **position is the aim.**
+fn fire_torpedoes(
+    time: Res<Time>,
+    path: Res<RiverPath>,
+    mut commands: Commands,
+    flotilla: Res<Flotilla>,
+    mut boats: Query<(&Transform, &Station, &Trim, &mut Torpedoes), With<UBoat>>,
+    enemies: Query<&Transform, With<Enemy>>,
 ) {
+    let rank = rank_for(flotilla.kills);
+
+    for (transform, station, trim, mut torpedoes) in &mut boats {
+        if !trim.can_fire() || torpedoes.loaded == 0 {
+            torpedoes.tube.reset();
+            continue;
+        }
+        if !torpedoes.tube.tick(time.delta()).just_finished() {
+            continue;
+        }
+
+        // Upstream is index - 1. At the very top of the river there is nothing
+        // to shoot at anyway.
+        let Some(upstream) = station.index.checked_sub(1) else {
+            continue;
+        };
+        let here = path.points[station.index];
+        let heading = (path.points[upstream] - here).normalize_or_zero();
+        if heading == Vec2::ZERO {
+            continue;
+        }
+
+        // Only fire if something is actually in the lane — otherwise a docked
+        // boat would empty its tubes into open water. "In the lane" is a cheap
+        // projection test: ahead of us, and within half a tile of the axis.
+        let origin = transform.translation.truncate();
+        let has_target = enemies.iter().any(|enemy| {
+            let offset = enemy.translation.truncate() - origin;
+            let along = offset.dot(heading);
+            let across = (offset - heading * along).length();
+            along > 0.0 && along <= TORPEDO_RUN && across <= crate::balance::TILE_SIZE * 0.5
+        });
+        if !has_target {
+            torpedoes.tube.reset();
+            continue;
+        }
+
+        torpedoes.loaded -= 1;
+        commands.spawn(torpedo_bundle(
+            origin,
+            heading,
+            rank.damage,
+            TORPEDO_SPEED,
+            TORPEDO_RUN,
+        ));
+    }
+}
+
+/// Kill credit. Only torpedo kills count towards rank — the boat's record, not
+/// the shore batteries'.
+fn on_kill_credit(
+    sunk: On<Sunk>,
+    enemies: Query<&crate::game::combat::LastHitBy>,
+    mut flotilla: ResMut<Flotilla>,
+) {
+    if let Ok(last) = enemies.get(sunk.entity) {
+        if last.0 == DamageKind::Torpedo {
+            flotilla.kills += 1;
+        }
+    }
+}
+
+fn on_boat_lost(sunk: On<Sunk>, boats: Query<(), With<UBoat>>, mut flotilla: ResMut<Flotilla>) {
     if boats.get(sunk.entity).is_ok() {
-        pen.at_sea = pen.at_sea.saturating_sub(1);
+        flotilla.at_sea = false;
+        // Harsh and real, as ordered: the record dies with the crew.
+        flotilla.kills = 0;
     }
 }

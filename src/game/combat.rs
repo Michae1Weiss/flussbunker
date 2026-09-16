@@ -63,6 +63,17 @@ pub struct Damage {
     pub kind: DamageKind,
 }
 
+/// What last hurt this entity. One tiny component, added by the damage system,
+/// so that "who gets the kill credit" is answerable without threading an
+/// attacker `Entity` through every projectile and every message.
+///
+/// It records the *kind*, not the shooter — because the only question the game
+/// actually asks is "was this a torpedo kill", for u-boat veterancy. Storing
+/// the attacker would be more general and less useful: general-purpose data
+/// nobody queries is just a field that can go stale.
+#[derive(Component, Debug)]
+pub struct LastHitBy(pub DamageKind);
+
 /// Fired on an entity the instant its health hits zero, *before* it despawns —
 /// so observers can still read its components.
 #[derive(EntityEvent, Debug)]
@@ -71,7 +82,11 @@ pub struct Sunk {
     pub entity: Entity,
 }
 
-fn apply_damage(mut incoming: MessageReader<Damage>, mut targets: Query<(&mut Health, Option<&Armor>)>) {
+fn apply_damage(
+    mut commands: Commands,
+    mut incoming: MessageReader<Damage>,
+    mut targets: Query<(&mut Health, Option<&Armor>)>,
+) {
     for hit in incoming.read() {
         // The target may already be despawned this tick — two towers can fire
         // at the same boat. `let Ok(..) else` makes that a non-event rather
@@ -92,6 +107,7 @@ fn apply_damage(mut incoming: MessageReader<Damage>, mut targets: Query<(&mut He
         };
 
         health.current -= effective;
+        commands.entity(hit.target).insert(LastHitBy(hit.kind));
     }
 }
 

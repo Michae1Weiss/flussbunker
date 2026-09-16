@@ -9,10 +9,7 @@
 
 use bevy::prelude::*;
 
-use crate::{
-    game,
-    screens::{self, Screen},
-};
+use crate::{game, screens::{self, Screen}};
 
 pub struct GamePlugin;
 
@@ -56,15 +53,10 @@ impl Plugin for GamePlugin {
         // Gate gameplay once, at the set level. Individual systems then never
         // repeat `.run_if(in_state(...))` — a whole class of "I forgot the run
         // condition" bugs simply cannot occur.
+        // Ref: https://github.com/bevyengine/bevy/blob/916f78816d38fc0252d36fd3d39c9dfa620de46f/examples/ecs/ecs_guide.rs#L330
         app.configure_sets(
             FixedUpdate,
-            (
-                Sim::Spawn,
-                Sim::Movement,
-                Sim::Targeting,
-                Sim::Damage,
-                Sim::Death,
-            )
+            (Sim::Spawn, Sim::Movement, Sim::Targeting, Sim::Damage, Sim::Death)
                 .chain()
                 .run_if(in_state(Screen::Gameplay)),
         );

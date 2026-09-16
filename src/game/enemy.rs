@@ -13,7 +13,8 @@ use bevy::prelude::*;
 use crate::balance::{EnemyKind, Z_ENEMY};
 use crate::game::combat::{Armor, Damage, DamageKind, Health};
 use crate::game::map::RiverPath;
-use crate::game::uboat::UBoat;
+use crate::game::projectile::splash_bundle;
+use crate::game::uboat::{Trim, UBoat};
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
@@ -58,11 +59,18 @@ pub struct Bounty(pub u32);
 pub struct BreachDamage(pub u32);
 
 /// Destroyer anti-submarine armament.
+///
+/// `acquire` is a *warning window*, not a reload. Sonar contact is drawn on
+/// screen for its whole duration before anything is dropped, so losing the
+/// u-boat is always the result of ignoring a signal rather than of looking at
+/// the wrong corner of the map. That distinction is what makes a permanent,
+/// unrecoverable loss acceptable instead of infuriating — the player has to be
+/// able to blame themselves.
 #[derive(Component)]
 pub struct DepthCharges {
     pub range: f32,
     pub damage: f32,
-    pub reload: Timer,
+    pub acquire: Timer,
 }
 
 /// A boat got through. Written here (the producer), read by `bunker.rs`.
@@ -108,7 +116,7 @@ pub fn depth_charge_bundle(kind: EnemyKind) -> Option<DepthCharges> {
     kind.stats().depth_charge.map(|dc| DepthCharges {
         range: dc.range,
         damage: dc.damage,
-        reload: Timer::from_seconds(dc.reload, TimerMode::Repeating),
+        acquire: Timer::from_seconds(dc.acquire, TimerMode::Repeating),
     })
 }
 
@@ -159,35 +167,54 @@ fn advance_along_river(
     }
 }
 
-/// Destroyers fight back. This is what makes a u-boat sortie a *decision*
-/// rather than a free button: send it too early into a screening destroyer and
-/// you lose 110 marks and a pen slot.
+/// Destroyers hunt. Sonar contact first, charges second.
+///
+/// A **submerged** boat is invisible to them: the timer resets, the beam
+/// disappears. So the counter-play is legible without a word of text — you see
+/// the red line, you press T, the line goes away.
 fn drop_depth_charges(
     time: Res<Time>,
     mut commands: Commands,
+    mut gizmos: Gizmos,
     mut damage: MessageWriter<Damage>,
-    mut destroyers: Query<(&Transform, &mut DepthCharges)>,
-    uboats: Query<(Entity, &Transform), With<UBoat>>,
+    mut hunters: Query<(&Transform, &mut DepthCharges)>,
+    uboats: Query<(Entity, &Transform, &Trim), With<UBoat>>,
 ) {
-    for (transform, mut charges) in &mut destroyers {
-        if !charges.reload.tick(time.delta()).just_finished() {
-            continue;
-        }
+    for (transform, mut charges) in &mut hunters {
         let origin = transform.translation.truncate();
-        let in_range = uboats.iter().find(|(_, boat)| {
-            origin.distance_squared(boat.translation.truncate()) <= charges.range * charges.range
+
+        let contact = uboats.iter().find(|(_, boat, trim)| {
+            trim.is_hittable()
+                && origin.distance_squared(boat.translation.truncate())
+                    <= charges.range * charges.range
         });
 
-        if let Some((target, boat)) = in_range {
+        let Some((target, boat, _)) = contact else {
+            charges.acquire.reset();
+            continue;
+        };
+
+        charges.acquire.tick(time.delta());
+
+        // The telegraph. Brightens as the charges get closer to dropping, so
+        // urgency is readable at a glance rather than requiring a countdown.
+        let heat = charges.acquire.fraction();
+        gizmos.line_2d(
+            origin,
+            boat.translation.truncate(),
+            Color::srgb(0.4 + 0.6 * heat, 0.15, 0.15),
+        );
+
+        if charges.acquire.just_finished() {
             damage.write(Damage {
                 target,
                 amount: charges.damage,
                 kind: DamageKind::Shell,
             });
-            // Splash marker, despawned by its own timer in `projectile.rs`.
-            commands.spawn(crate::game::projectile::splash_bundle(
+            commands.spawn(splash_bundle(
                 boat.translation.truncate(),
-                Color::srgb(0.85, 0.85, 0.95),
+                Color::srgb(0.9, 0.9, 1.0),
+                26.0,
             ));
         }
     }

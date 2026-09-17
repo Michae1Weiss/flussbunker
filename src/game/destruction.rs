@@ -318,7 +318,7 @@ fn fly_debris(
     mut commands: Commands,
     mut damage: MessageWriter<Damage>,
     mut pieces: Query<(Entity, &mut Transform, &mut Debris)>,
-    enemies: Query<(Entity, &Transform, &Hull), With<Enemy>>,
+    enemies: Query<(Entity, &Transform, &Hull), (With<Enemy>, Without<Debris>)>,
 ) {
     let step = time.delta_secs();
     for (entity, mut transform, mut piece) in &mut pieces {

@@ -1,5 +1,5 @@
 //! Enemy boats: movement along the river, breaching, destroyer depth charges.
-//! Sole writer of `PathProgress`, `DepthCharges`; writes `EnemyReachedBunker` and `Damage`.
+//! Sole writer of `Along`, `DepthCharges`; writes `EnemyReachedBunker` and `Damage`.
 
 use bevy::prelude::*;
 
@@ -32,11 +32,9 @@ pub struct EnemyType(pub EnemyKind);
 #[derive(Component)]
 pub struct Speed(pub f32);
 
+/// Arc length along `RiverPath`; doubles as tower target priority.
 #[derive(Component, Default)]
-pub struct PathProgress {
-    /// `RiverPath` index steered toward; doubles as tower target priority.
-    pub next: usize,
-}
+pub struct Along(pub f32);
 
 /// RM paid on sinking.
 #[derive(Component)]
@@ -71,7 +69,7 @@ pub fn enemy_bundle(kind: EnemyKind, spawn: Vec2) -> impl Bundle {
         Speed(stats.speed),
         Bounty(stats.bounty),
         BreachDamage(stats.breach_damage),
-        PathProgress::default(),
+        Along::default(),
         Sprite {
             color: Color::srgb(stats.rgb[0], stats.rgb[1], stats.rgb[2]),
             custom_size: Some(Vec2::new(stats.size * 0.55, stats.size)),
@@ -95,45 +93,24 @@ fn advance_along_river(
     path: Res<RiverPath>,
     mut commands: Commands,
     mut breach: MessageWriter<EnemyReachedBunker>,
-    mut boats: Query<
-        (
-            Entity,
-            &mut Transform,
-            &Speed,
-            &mut PathProgress,
-            &BreachDamage,
-        ),
-        With<Enemy>,
-    >,
+    mut boats: Query<(Entity, &mut Transform, &Speed, &mut Along, &BreachDamage), With<Enemy>>,
 ) {
-    let step = time.delta_secs();
-
-    for (entity, mut transform, speed, mut progress, breach_damage) in &mut boats {
-        let Some(target) = path.points.get(progress.next).copied() else {
-            // Past the last waypoint: the bunker is reached.
+    for (entity, mut transform, speed, mut along, breach_damage) in &mut boats {
+        along.0 += speed.0 * time.delta_secs();
+        if along.0 >= path.length() {
             breach.write(EnemyReachedBunker {
                 damage: breach_damage.0,
             });
             commands.entity(entity).despawn();
             continue;
-        };
-
-        let position = transform.translation.truncate();
-        let to_target = target - position;
-        let travel = speed.0 * step;
-
-        if to_target.length() <= travel {
-            transform.translation = target.extend(transform.translation.z);
-            progress.next += 1;
-        } else {
-            transform.translation += (to_target.normalize_or_zero() * travel).extend(0.0);
         }
 
+        let z = transform.translation.z;
+        transform.translation = path.point_at(along.0).extend(z);
         // Sprites are drawn bow-up, hence the -90°.
-        if to_target.length_squared() > f32::EPSILON {
-            transform.rotation =
-                Quat::from_rotation_z(to_target.to_angle() - std::f32::consts::FRAC_PI_2);
-        }
+        transform.rotation = Quat::from_rotation_z(
+            path.tangent_at(along.0).to_angle() - std::f32::consts::FRAC_PI_2,
+        );
     }
 }
 

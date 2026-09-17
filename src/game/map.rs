@@ -1,241 +1,242 @@
-//! Static world: `MapGrid` (tiles, grid ↔ world maths) and `RiverPath` (waypoints
-//! from the sea to the bunker). Parsed once at startup; a malformed map panics.
+//! Static world: the river centreline as a polyline from the sea (`s = 0`) to the
+//! bunker (`s = length`), in world units, plus the arc-length maths every mover uses.
+//! Sole writer of `RiverPath`.
 
 use bevy::prelude::*;
-use std::collections::HashSet;
 
-use crate::balance::{TILE_SIZE, Z_TILE};
+use crate::balance::{
+    MAP_HEIGHT_TILES, MAP_WIDTH_TILES, RIVER_HALF_WIDTH, TILE_SIZE, Z_TILE, Z_TOWER,
+};
 use crate::screens::Screen;
 
 pub(super) fn plugin(app: &mut App) {
-    let (grid, river) = parse(MAP).expect("map is malformed");
-    app.insert_resource(grid)
-        .insert_resource(river)
-        .add_systems(OnEnter(Screen::Gameplay), spawn_tiles);
+    let points = CENTRELINE_TILES
+        .iter()
+        .map(|&(x, y)| tile_to_world(x, y))
+        .collect();
+    app.insert_resource(RiverPath::new(points))
+        .add_systems(OnEnter(Screen::Gameplay), spawn_river);
 }
 
-/// `S` sea spawn, `~` river, `.` land, `B` bunker.
-/// The river must be one unbranched, 4-connected channel from `S` to `B`.
-const MAP: &str = "\
-S~~~~.......
-....~.......
-....~~~~~~..
-.........~..
-..~~~~~~~~..
-..~.........
-..~~~~~~....
-.......~....
-.......~....
-.......~~~..
-.........~..
-.........B..";
+/// Tile coordinates, x rightwards and y downwards from the top-left corner of the map.
+/// Straights of different lengths on purpose; the longest must exceed `TORPEDO_RUN`.
+const CENTRELINE_TILES: &[(f32, f32)] = &[
+    (-1.0, 3.0),
+    (9.0, 3.0),
+    (12.0, 8.0),
+    (23.0, 8.0),
+    (23.0, 13.0),
+    (28.0, 13.0),
+    (28.0, 17.5),
+];
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Tile {
-    Land,
-    River,
-    Bunker,
+pub fn tile_to_world(x: f32, y: f32) -> Vec2 {
+    Vec2::new(
+        (x - MAP_WIDTH_TILES * 0.5) * TILE_SIZE,
+        (MAP_HEIGHT_TILES * 0.5 - y) * TILE_SIZE,
+    )
 }
 
-impl Tile {
-    pub fn is_navigable(self) -> bool {
-        matches!(self, Tile::River | Tile::Bunker)
-    }
-}
-
-#[derive(Resource)]
-pub struct MapGrid {
-    pub width: i32,
-    pub height: i32,
-    tiles: Vec<Tile>,
-}
-
-impl MapGrid {
-    /// `None` outside the grid.
-    pub fn tile(&self, cell: IVec2) -> Option<Tile> {
-        if cell.x < 0 || cell.y < 0 || cell.x >= self.width || cell.y >= self.height {
-            return None;
-        }
-        Some(self.tiles[(cell.y * self.width + cell.x) as usize])
-    }
-
-    /// Cell centre in world units. Row 0 is the top of the map, so y is negated.
-    pub fn grid_to_world(&self, cell: IVec2) -> Vec2 {
-        Vec2::new(
-            (cell.x as f32 - (self.width - 1) as f32 * 0.5) * TILE_SIZE,
-            -(cell.y as f32 - (self.height - 1) as f32 * 0.5) * TILE_SIZE,
-        )
-    }
-
-    pub fn world_to_grid(&self, world: Vec2) -> IVec2 {
-        IVec2::new(
-            (world.x / TILE_SIZE + (self.width - 1) as f32 * 0.5).round() as i32,
-            (-world.y / TILE_SIZE + (self.height - 1) as f32 * 0.5).round() as i32,
-        )
-    }
-}
-
-/// Sea first, bunker last. Enemies walk it forwards, the U-boat backwards.
 #[derive(Resource)]
 pub struct RiverPath {
-    pub cells: Vec<IVec2>,
-    pub points: Vec<Vec2>,
+    points: Vec<Vec2>,
+    /// Arc length at each point; `cumulative[0] == 0`.
+    cumulative: Vec<f32>,
 }
 
 impl RiverPath {
+    /// # Panics
+    /// With fewer than two points.
+    pub fn new(points: Vec<Vec2>) -> Self {
+        assert!(points.len() >= 2, "a river needs at least two points");
+        let mut cumulative = Vec::with_capacity(points.len());
+        let mut total = 0.0;
+        cumulative.push(0.0);
+        for pair in points.windows(2) {
+            total += pair[0].distance(pair[1]);
+            cumulative.push(total);
+        }
+        Self { points, cumulative }
+    }
+
+    pub fn length(&self) -> f32 {
+        *self.cumulative.last().unwrap()
+    }
+
     pub fn spawn_point(&self) -> Vec2 {
         self.points[0]
     }
 
     pub fn bunker_point(&self) -> Vec2 {
-        self.points[self.points.len() - 1]
+        *self.points.last().unwrap()
     }
 
-    /// `None` for cells that are not on the river.
-    pub fn index_of(&self, cell: IVec2) -> Option<usize> {
-        self.cells.iter().position(|c| *c == cell)
-    }
-}
-
-/// `Err` for unknown characters, ragged rows, a missing `S` or `B`, or a river
-/// that branches or dead-ends.
-fn parse(source: &str) -> Result<(MapGrid, RiverPath), String> {
-    let rows: Vec<&str> = source.lines().collect();
-    let height = rows.len() as i32;
-    let width = rows[0].len() as i32;
-
-    let mut tiles = Vec::with_capacity((width * height) as usize);
-    let mut start = None;
-    let mut bunker = None;
-
-    for (y, row) in rows.iter().enumerate() {
-        if row.len() as i32 != width {
-            return Err(format!("row {y} has width {}, expected {width}", row.len()));
-        }
-        for (x, ch) in row.chars().enumerate() {
-            let cell = IVec2::new(x as i32, y as i32);
-            tiles.push(match ch {
-                '.' => Tile::Land,
-                '~' => Tile::River,
-                'S' => {
-                    start = Some(cell);
-                    Tile::River
-                }
-                'B' => {
-                    bunker = Some(cell);
-                    Tile::Bunker
-                }
-                other => return Err(format!("unknown tile '{other}' at {cell}")),
-            });
-        }
+    pub fn segments(&self) -> impl Iterator<Item = (Vec2, Vec2)> + '_ {
+        self.points.windows(2).map(|pair| (pair[0], pair[1]))
     }
 
-    let grid = MapGrid {
-        width,
-        height,
-        tiles,
-    };
-    let start = start.ok_or("map has no 'S' spawn")?;
-    let bunker = bunker.ok_or("map has no 'B' bunker")?;
+    /// Segment containing `s`; `s` at a vertex belongs to the segment starting there.
+    fn segment_index(&self, s: f32) -> usize {
+        let after = self.cumulative.partition_point(|&c| c <= s);
+        after.clamp(1, self.points.len() - 1) - 1
+    }
 
-    let mut cells = vec![start];
-    let mut visited = HashSet::new();
-    visited.insert(start);
+    /// `s` is clamped to the river.
+    pub fn point_at(&self, s: f32) -> Vec2 {
+        let s = s.clamp(0.0, self.length());
+        let i = self.segment_index(s);
+        let t = (s - self.cumulative[i]) / (self.cumulative[i + 1] - self.cumulative[i]);
+        self.points[i].lerp(self.points[i + 1], t)
+    }
 
-    while *cells.last().unwrap() != bunker {
-        let current = *cells.last().unwrap();
-        let mut next = None;
-        for step in [IVec2::X, IVec2::NEG_X, IVec2::Y, IVec2::NEG_Y] {
-            let candidate = current + step;
-            let navigable = grid.tile(candidate).is_some_and(Tile::is_navigable);
-            if navigable && !visited.contains(&candidate) {
-                if next.is_some() {
-                    return Err(format!("river branches at {current}"));
-                }
-                next = Some(candidate);
+    /// Unit direction of increasing `s`, i.e. downstream.
+    pub fn tangent_at(&self, s: f32) -> Vec2 {
+        let i = self.segment_index(s.clamp(0.0, self.length()));
+        (self.points[i + 1] - self.points[i]).normalize()
+    }
+
+    /// Arc length of the nearest point on the centreline, and the distance to it.
+    pub fn project(&self, p: Vec2) -> (f32, f32) {
+        let mut best = (0.0, f32::INFINITY);
+        for (i, (a, b)) in self.segments().enumerate() {
+            let ab = b - a;
+            let t = ((p - a).dot(ab) / ab.length_squared()).clamp(0.0, 1.0);
+            let distance = p.distance(a + ab * t);
+            if distance < best.1 {
+                best = (self.cumulative[i] + t * ab.length(), distance);
             }
         }
-        let next = next.ok_or_else(|| format!("river dead-ends at {current}"))?;
-        visited.insert(next);
-        cells.push(next);
+        best
     }
 
-    let points = cells.iter().map(|c| grid.grid_to_world(*c)).collect();
-    Ok((grid, RiverPath { cells, points }))
-}
+    pub fn contains(&self, p: Vec2) -> bool {
+        self.project(p).1 <= RIVER_HALF_WIDTH
+    }
 
-fn spawn_tiles(mut commands: Commands, grid: Res<MapGrid>) {
-    for y in 0..grid.height {
-        for x in 0..grid.width {
-            let cell = IVec2::new(x, y);
-            let Some(tile) = grid.tile(cell) else {
-                continue;
-            };
-            let color = match tile {
-                Tile::Land => Color::srgb(0.16, 0.20, 0.15),
-                Tile::River => Color::srgb(0.10, 0.24, 0.34),
-                Tile::Bunker => Color::srgb(0.34, 0.32, 0.30),
-            };
-            commands.spawn((
-                Name::new(format!("Tile {x},{y}")),
-                DespawnOnExit(Screen::Gameplay),
-                Sprite {
-                    color,
-                    custom_size: Some(Vec2::splat(TILE_SIZE - 1.0)),
-                    ..default()
-                },
-                Transform::from_translation(grid.grid_to_world(cell).extend(Z_TILE)),
-            ));
+    /// Arc length where the straight containing `s` ends, walking downstream or upstream.
+    /// At a vertex, upstream means the straight that ends there.
+    pub fn straight_end(&self, s: f32, downstream: bool) -> f32 {
+        let s = s.clamp(0.0, self.length());
+        if downstream {
+            self.cumulative[self.segment_index(s) + 1]
+        } else {
+            let before = self.cumulative.partition_point(|&c| c < s);
+            self.cumulative[before.clamp(1, self.points.len() - 1) - 1]
         }
     }
+}
+
+fn spawn_river(
+    mut commands: Commands,
+    path: Res<RiverPath>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let water = Color::srgb(0.10, 0.24, 0.34);
+    let bend = meshes.add(Circle::new(RIVER_HALF_WIDTH));
+    let water_material = materials.add(water);
+
+    for (a, b) in path.segments() {
+        let along = b - a;
+        commands.spawn((
+            Name::new("River segment"),
+            DespawnOnExit(Screen::Gameplay),
+            Sprite {
+                color: water,
+                custom_size: Some(Vec2::new(along.length(), RIVER_HALF_WIDTH * 2.0)),
+                ..default()
+            },
+            Transform::from_translation(a.midpoint(b).extend(Z_TILE))
+                .with_rotation(Quat::from_rotation_z(along.to_angle())),
+        ));
+        commands.spawn((
+            Name::new("River bend"),
+            DespawnOnExit(Screen::Gameplay),
+            Mesh2d(bend.clone()),
+            MeshMaterial2d(water_material.clone()),
+            Transform::from_translation(b.extend(Z_TILE)),
+        ));
+    }
+
+    commands.spawn((
+        Name::new("Bunker"),
+        DespawnOnExit(Screen::Gameplay),
+        Sprite {
+            color: Color::srgb(0.34, 0.32, 0.30),
+            custom_size: Some(Vec2::splat(TILE_SIZE * 1.6)),
+            ..default()
+        },
+        Transform::from_translation(path.bunker_point().extend(Z_TOWER)),
+    ));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::balance::TORPEDO_RUN;
 
-    #[test]
-    fn river_runs_from_sea_to_bunker() {
-        let (grid, river) = parse(MAP).unwrap();
-
-        assert_eq!(grid.tile(river.cells[0]), Some(Tile::River));
-        assert_eq!(grid.tile(*river.cells.last().unwrap()), Some(Tile::Bunker));
+    fn river() -> RiverPath {
+        RiverPath::new(vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(100.0, 0.0),
+            Vec2::new(100.0, 50.0),
+            Vec2::new(160.0, 50.0),
+        ])
     }
 
     #[test]
-    fn river_is_contiguous() {
-        let (_, river) = parse(MAP).unwrap();
+    fn arc_length_sums_the_segments() {
+        assert_eq!(river().length(), 210.0);
+    }
 
-        for pair in river.cells.windows(2) {
-            let delta = pair[1] - pair[0];
-            assert_eq!(delta.x.abs() + delta.y.abs(), 1, "gap at {:?}", pair[0]);
+    #[test]
+    fn project_inverts_point_at() {
+        let river = river();
+        for s in [0.0, 37.5, 100.0, 120.0, 210.0] {
+            let (back, distance) = river.project(river.point_at(s));
+            assert!((back - s).abs() < 1e-3, "s = {s}, got {back}");
+            assert!(distance < 1e-3);
         }
     }
 
     #[test]
-    fn every_river_tile_is_on_the_path() {
-        let (grid, river) = parse(MAP).unwrap();
-
-        let on_path = river.cells.len();
-        let navigable = (0..grid.height)
-            .flat_map(|y| (0..grid.width).map(move |x| IVec2::new(x, y)))
-            .filter(|c| grid.tile(*c).is_some_and(Tile::is_navigable))
-            .count();
-
-        assert_eq!(on_path, navigable);
+    fn points_beside_the_channel_are_outside() {
+        let river = river();
+        assert!(river.contains(Vec2::new(50.0, RIVER_HALF_WIDTH * 0.5)));
+        assert!(!river.contains(Vec2::new(50.0, RIVER_HALF_WIDTH * 1.5)));
     }
 
     #[test]
-    fn grid_and_world_round_trip() {
-        let (grid, _) = parse(MAP).unwrap();
-        let cell = IVec2::new(3, 7);
-
-        assert_eq!(grid.world_to_grid(grid.grid_to_world(cell)), cell);
+    fn straight_end_stops_at_the_bend() {
+        let river = river();
+        assert_eq!(river.straight_end(30.0, true), 100.0);
+        assert_eq!(river.straight_end(30.0, false), 0.0);
+        assert_eq!(river.straight_end(120.0, false), 100.0);
+        assert_eq!(river.straight_end(100.0, false), 0.0);
+        assert_eq!(river.straight_end(100.0, true), 150.0);
     }
 
     #[test]
-    fn a_branching_river_is_rejected() {
-        let branched = "S~~.\n.~~.\n..~B";
-        assert!(parse(branched).is_err());
+    fn tangent_points_downstream() {
+        let river = river();
+        assert_eq!(river.tangent_at(50.0), Vec2::X);
+        assert_eq!(river.tangent_at(120.0), Vec2::Y);
+    }
+
+    #[test]
+    fn the_map_has_a_straight_longer_than_a_torpedo_run() {
+        let points = CENTRELINE_TILES
+            .iter()
+            .map(|&(x, y)| tile_to_world(x, y))
+            .collect();
+        let river = RiverPath::new(points);
+        let longest = river
+            .segments()
+            .map(|(a, b)| a.distance(b))
+            .fold(0.0, f32::max);
+        assert!(
+            longest > TORPEDO_RUN,
+            "longest straight {longest} <= {TORPEDO_RUN}"
+        );
     }
 }

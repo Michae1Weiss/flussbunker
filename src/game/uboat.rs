@@ -4,8 +4,9 @@
 use bevy::prelude::*;
 
 use crate::balance::{
-    rank_for, TORPEDO_RUN, TORPEDO_SPEED, UBOAT_HEALTH, UBOAT_REARM_SECONDS,
-    UBOAT_REPLACEMENT_COST, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TRIM_SECONDS, Z_UBOAT,
+    rank_for, RIVER_HALF_WIDTH, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED, UBOAT_HEALTH,
+    UBOAT_REARM_SECONDS, UBOAT_REPLACEMENT_COST, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR,
+    UBOAT_TRIM_SECONDS, Z_UBOAT,
 };
 use crate::game::combat::{DamageKind, Health, Sunk};
 use crate::game::economy::Treasury;
@@ -92,12 +93,18 @@ pub struct Torpedoes {
     pub rearm: Timer,
 }
 
+/// Position and destination as arc lengths along `RiverPath`.
 #[derive(Component)]
 pub struct Station {
-    /// `RiverPath` index currently steered toward.
-    pub index: usize,
-    /// `RiverPath` index of the ordered destination.
-    pub goal: usize,
+    pub along: f32,
+    pub goal: f32,
+}
+
+impl Station {
+    /// Within a tile of the bunker.
+    fn is_docked(&self, path: &RiverPath) -> bool {
+        self.along >= path.length() - TILE_SIZE
+    }
 }
 
 fn commission_first_boat(mut intents: MessageWriter<CommissionUBoat>) {
@@ -119,7 +126,6 @@ fn commission(
             continue;
         }
 
-        let dock = path.points.len() - 1;
         let rank = rank_for(flotilla.kills);
         flotilla.at_sea = true;
 
@@ -134,8 +140,8 @@ fn commission(
                 rearm: Timer::from_seconds(UBOAT_REARM_SECONDS, TimerMode::Repeating),
             },
             Station {
-                index: dock,
-                goal: dock,
+                along: path.length(),
+                goal: path.length(),
             },
             Sprite {
                 color: Color::srgb(0.34, 0.38, 0.42),
@@ -154,7 +160,7 @@ fn apply_move_intents(
 ) {
     for intent in intents.read() {
         for mut station in &mut boats {
-            station.goal = intent.station;
+            station.goal = intent.along;
         }
     }
 }
@@ -212,30 +218,18 @@ fn navigate(
             _ => UBOAT_SPEED * UBOAT_SUBMERGED_SPEED_FACTOR,
         };
 
-        let target = path.points[station.index];
-        let position = transform.translation.truncate();
-        let to_target = target - position;
-        let travel = speed * step;
-
-        if to_target.length() <= travel {
-            // The index advances only once the waypoint is reached; advancing
-            // earlier parks the boat one tile short of the ordered cell.
-            transform.translation = target.extend(transform.translation.z);
-            if station.index < station.goal {
-                station.index += 1;
-            } else if station.index > station.goal {
-                station.index -= 1;
-            } else {
-                continue;
-            }
-        } else {
-            transform.translation += (to_target.normalize_or_zero() * travel).extend(0.0);
+        let remaining = station.goal - station.along;
+        if remaining == 0.0 {
+            continue;
         }
+        let travel = (speed * step).min(remaining.abs());
+        station.along += travel.copysign(remaining);
 
-        if to_target.length_squared() > f32::EPSILON {
-            transform.rotation =
-                Quat::from_rotation_z(to_target.to_angle() - std::f32::consts::FRAC_PI_2);
-        }
+        let z = transform.translation.z;
+        transform.translation = path.point_at(station.along).extend(z);
+        let heading = path.tangent_at(station.along) * remaining.signum();
+        transform.rotation =
+            Quat::from_rotation_z(heading.to_angle() - std::f32::consts::FRAC_PI_2);
     }
 }
 
@@ -245,10 +239,9 @@ fn rearm(
     flotilla: Res<Flotilla>,
     mut boats: Query<(&Station, &mut Torpedoes), With<UBoat>>,
 ) {
-    let dock = path.points.len() - 1;
     for (station, mut torpedoes) in &mut boats {
         let capacity = rank_for(flotilla.kills).torpedoes;
-        if station.index < dock.saturating_sub(1) || torpedoes.loaded >= capacity {
+        if !station.is_docked(&path) || torpedoes.loaded >= capacity {
             torpedoes.rearm.reset();
             continue;
         }
@@ -278,21 +271,13 @@ fn fire_torpedoes(
             continue;
         }
 
-        let Some(upstream) = station.index.checked_sub(1) else {
-            continue;
-        };
-        let here = path.points[station.index];
-        let heading = (path.points[upstream] - here).normalize_or_zero();
-        if heading == Vec2::ZERO {
-            continue;
-        }
-
+        let heading = -path.tangent_at(station.along);
         let origin = transform.translation.truncate();
         let has_target = enemies.iter().any(|enemy| {
             let offset = enemy.translation.truncate() - origin;
             let along = offset.dot(heading);
             let across = (offset - heading * along).length();
-            along > 0.0 && along <= TORPEDO_RUN && across <= crate::balance::TILE_SIZE * 0.5
+            along > 0.0 && along <= TORPEDO_RUN && across <= RIVER_HALF_WIDTH
         });
         if !has_target {
             torpedoes.tube.reset();

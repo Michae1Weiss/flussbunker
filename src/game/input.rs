@@ -4,7 +4,7 @@
 use bevy::prelude::*;
 
 use crate::balance::{TowerKind, TILE_SIZE};
-use crate::game::map::{MapGrid, RiverPath, Tile};
+use crate::game::map::RiverPath;
 use crate::game::tower::Tower;
 use crate::game_plugin::Frame;
 
@@ -34,13 +34,14 @@ impl SelectedTool {
 #[derive(Message)]
 pub struct BuildTower {
     pub kind: TowerKind,
-    pub cell: IVec2,
+    /// World position.
+    pub position: Vec2,
 }
 
 #[derive(Message)]
 pub struct MoveUBoat {
-    /// Index into `RiverPath`.
-    pub station: usize,
+    /// Arc length along `RiverPath`.
+    pub along: f32,
 }
 
 #[derive(Message)]
@@ -66,7 +67,6 @@ fn read_intents(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     tool: Res<SelectedTool>,
-    grid: Res<MapGrid>,
     path: Res<RiverPath>,
     camera: Single<(&Camera, &GlobalTransform)>,
     window: Single<&Window>,
@@ -85,105 +85,67 @@ fn read_intents(
     if !buttons.just_pressed(MouseButton::Left) {
         return;
     }
-    let Some(cell) = cursor_cell(&camera, *window, &grid) else {
+    let Some(world) = cursor_world(&camera, *window) else {
         return;
     };
 
-    match grid.tile(cell) {
-        Some(Tile::Land) => {
-            build.write(BuildTower {
-                kind: tool.kind(),
-                cell,
-            });
-        }
-        Some(Tile::River) | Some(Tile::Bunker) => {
-            if let Some(station) = path.index_of(cell) {
-                move_boat.write(MoveUBoat { station });
-            }
-        }
-        None => {}
+    let (along, distance) = path.project(world);
+    if path.contains(world) {
+        move_boat.write(MoveUBoat { along });
+    } else if distance > TILE_SIZE {
+        build.write(BuildTower {
+            kind: tool.kind(),
+            position: world,
+        });
     }
 }
 
-/// Grid cell under the cursor; `None` when the cursor is outside the window.
-pub fn cursor_cell(
-    camera: &(&Camera, &GlobalTransform),
-    window: &Window,
-    grid: &MapGrid,
-) -> Option<IVec2> {
+/// Cursor in world units; `None` when the cursor is outside the window.
+pub fn cursor_world(camera: &(&Camera, &GlobalTransform), window: &Window) -> Option<Vec2> {
     let (camera, camera_transform) = *camera;
     let cursor = window.cursor_position()?;
-    let world = camera.viewport_to_world_2d(camera_transform, cursor).ok()?;
-    Some(grid.world_to_grid(world))
+    camera.viewport_to_world_2d(camera_transform, cursor).ok()
 }
 
 fn draw_hover(
     mut gizmos: Gizmos,
     tool: Res<SelectedTool>,
-    grid: Res<MapGrid>,
     path: Res<RiverPath>,
     camera: Single<(&Camera, &GlobalTransform)>,
     window: Single<&Window>,
     towers: Query<&Transform, With<Tower>>,
 ) {
-    let Some(cell) = cursor_cell(&camera, *window, &grid) else {
+    let Some(world) = cursor_world(&camera, *window) else {
         return;
     };
-    let Some(tile) = grid.tile(cell) else { return };
-    let centre = grid.grid_to_world(cell);
 
-    match tile {
-        Tile::Land => {
-            let occupied = towers
-                .iter()
-                .any(|t| grid.world_to_grid(t.translation.truncate()) == cell);
-            let color = if occupied {
-                Color::srgb(0.8, 0.3, 0.3)
-            } else {
-                Color::srgb(0.85, 0.85, 0.6)
-            };
-            gizmos.rect_2d(
-                Isometry2d::from_translation(centre),
-                Vec2::splat(TILE_SIZE),
-                color,
-            );
-            if !occupied {
-                gizmos.circle_2d(
-                    Isometry2d::from_translation(centre),
-                    tool.kind().stats().range,
-                    color.with_alpha(0.35),
-                );
-            }
-        }
-        Tile::River | Tile::Bunker => {
-            let lane = Color::srgb(0.55, 0.90, 1.0);
-            gizmos.rect_2d(
-                Isometry2d::from_translation(centre),
-                Vec2::splat(TILE_SIZE),
-                lane,
-            );
-            if let Some(end) = firing_lane_end(&path, &grid, cell) {
-                gizmos.line_2d(centre, end, lane);
-            }
-        }
+    if path.contains(world) {
+        let (along, _) = path.project(world);
+        let lane = Color::srgb(0.55, 0.90, 1.0);
+        let here = path.point_at(along);
+        gizmos.circle_2d(Isometry2d::from_translation(here), 6.0, lane);
+        gizmos.line_2d(here, path.point_at(path.straight_end(along, false)), lane);
+        return;
     }
-}
 
-/// Upstream end of the straight a torpedo fired from `cell` would run along.
-/// `None` off the river or at the sea end.
-pub fn firing_lane_end(path: &RiverPath, grid: &MapGrid, cell: IVec2) -> Option<Vec2> {
-    let index = path.index_of(cell)?;
-    let upstream = index.checked_sub(1)?;
-    let heading = path.cells[upstream] - path.cells[index];
-
-    let mut last = upstream;
-    let mut probe = upstream;
-    while let Some(next) = probe.checked_sub(1) {
-        if path.cells[next] - path.cells[probe] != heading {
-            break;
-        }
-        last = next;
-        probe = next;
+    let occupied = towers
+        .iter()
+        .any(|t| t.translation.truncate().distance(world) < TILE_SIZE);
+    let color = if occupied {
+        Color::srgb(0.8, 0.3, 0.3)
+    } else {
+        Color::srgb(0.85, 0.85, 0.6)
+    };
+    gizmos.rect_2d(
+        Isometry2d::from_translation(world),
+        Vec2::splat(TILE_SIZE * 0.62),
+        color,
+    );
+    if !occupied {
+        gizmos.circle_2d(
+            Isometry2d::from_translation(world),
+            tool.kind().stats().range,
+            color.with_alpha(0.35),
+        );
     }
-    Some(grid.grid_to_world(path.cells[last]))
 }

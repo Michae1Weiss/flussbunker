@@ -5,12 +5,12 @@ use bevy::prelude::*;
 
 use crate::balance::{Z_PROJECTILE, Z_TOWER};
 use crate::game::combat::{Damage, DamageKind};
-use crate::game::map::MapGrid;
+use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
 const HIT_RADIUS: f32 = 7.0;
-/// Half a tile: hulls within this distance of the run line are hit.
+/// Hulls within this distance of the run line are hit.
 const TORPEDO_BEAM: f32 = 24.0;
 
 pub(super) fn plugin(app: &mut App) {
@@ -175,7 +175,7 @@ fn fly_shells(
 
 fn run_torpedoes(
     time: Res<Time>,
-    grid: Res<MapGrid>,
+    path: Res<RiverPath>,
     mut commands: Commands,
     mut damage: MessageWriter<Damage>,
     mut torpedoes: Query<(Entity, &mut Transform, &mut Torpedo)>,
@@ -190,10 +190,7 @@ fn run_torpedoes(
 
         let position = transform.translation.truncate();
 
-        let out_of_water = !grid
-            .tile(grid.world_to_grid(position))
-            .is_some_and(|t| t.is_navigable());
-        if torpedo.run_remaining <= 0.0 || out_of_water {
+        if torpedo.run_remaining <= 0.0 || !path.contains(position) {
             commands.spawn(splash_bundle(position, Color::srgb(0.7, 0.85, 0.95), 8.0));
             commands.entity(entity).despawn();
             continue;

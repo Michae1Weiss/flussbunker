@@ -3,12 +3,12 @@
 
 use bevy::prelude::*;
 
-use crate::balance::{TowerKind, Z_TOWER};
+use crate::balance::{TowerKind, TILE_SIZE, Z_TOWER};
 use crate::game::combat::DamageKind;
 use crate::game::economy::Treasury;
-use crate::game::enemy::{Enemy, PathProgress};
+use crate::game::enemy::{Along, Enemy};
 use crate::game::input::BuildTower;
-use crate::game::map::{MapGrid, Tile};
+use crate::game::map::RiverPath;
 use crate::game::projectile::shell_bundle;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -59,7 +59,7 @@ pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
         },
         Sprite {
             color: Color::srgb(stats.rgb[0], stats.rgb[1], stats.rgb[2]),
-            custom_size: Some(Vec2::splat(crate::balance::TILE_SIZE * 0.62)),
+            custom_size: Some(Vec2::splat(TILE_SIZE * 0.62)),
             ..default()
         },
         Transform::from_translation(position.extend(Z_TOWER)),
@@ -72,7 +72,7 @@ fn fire_at_leader(
     time: Res<Time>,
     mut commands: Commands,
     mut towers: Query<(&Transform, &Range, &mut Gun), With<Tower>>,
-    enemies: Query<(Entity, &Transform, &PathProgress), With<Enemy>>,
+    enemies: Query<(Entity, &Transform, &Along), With<Enemy>>,
 ) {
     for (tower_transform, range, mut gun) in &mut towers {
         if !gun.reload.tick(time.delta()).just_finished() {
@@ -85,7 +85,7 @@ fn fire_at_leader(
             .filter(|(_, transform, _)| {
                 origin.distance_squared(transform.translation.truncate()) <= range.0 * range.0
             })
-            .max_by_key(|(_, _, progress)| progress.next);
+            .max_by(|a, b| a.2 .0.total_cmp(&b.2 .0));
 
         let Some((entity, _, _)) = target else {
             // Reset so the next enemy entering range is shot immediately.
@@ -108,22 +108,22 @@ fn construct(
     mut requests: MessageReader<BuildTower>,
     mut commands: Commands,
     mut treasury: ResMut<Treasury>,
-    grid: Res<MapGrid>,
+    path: Res<RiverPath>,
     towers: Query<&Transform, With<Tower>>,
 ) {
     for request in requests.read() {
-        if grid.tile(request.cell) != Some(Tile::Land) {
+        if path.contains(request.position) {
             continue;
         }
         let occupied = towers
             .iter()
-            .any(|t| grid.world_to_grid(t.translation.truncate()) == request.cell);
+            .any(|t| t.translation.truncate().distance(request.position) < TILE_SIZE);
         if occupied {
             continue;
         }
         if !treasury.try_spend(request.kind.stats().cost) {
             continue;
         }
-        commands.spawn(tower_bundle(request.kind, grid.grid_to_world(request.cell)));
+        commands.spawn(tower_bundle(request.kind, request.position));
     }
 }

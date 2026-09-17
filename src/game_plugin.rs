@@ -2,6 +2,9 @@
 
 use bevy::prelude::*;
 
+use bevy::camera::ScalingMode;
+
+use crate::balance::{MAP_HEIGHT_TILES, MAP_WIDTH_TILES, TILE_SIZE};
 use crate::{
     game,
     screens::{self, Screen},
@@ -30,7 +33,7 @@ pub enum Frame {
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ClearColor(Color::srgb(0.05, 0.07, 0.09)))
+        app.insert_resource(ClearColor(Color::srgb(0.16, 0.20, 0.15)))
             .insert_resource(Time::<Fixed>::from_hz(64.0))
             .add_systems(Startup, spawn_camera);
 
@@ -61,5 +64,15 @@ impl Plugin for GamePlugin {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Name::new("Camera"), Camera2d));
+    commands.spawn((
+        Name::new("Camera"),
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scaling_mode: ScalingMode::AutoMin {
+                min_width: MAP_WIDTH_TILES * TILE_SIZE,
+                min_height: MAP_HEIGHT_TILES * TILE_SIZE,
+            },
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 }

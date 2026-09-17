@@ -8,7 +8,7 @@ fn main() -> AppExit {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Flussbunker".to_string(),
-                        resolution: WindowResolution::new(960, 720),
+                        resolution: WindowResolution::new(1280, 720),
                         ..default()
                     }),
                     ..default()

@@ -3,6 +3,10 @@
 use crate::game::combat::DamageKind;
 
 pub const TILE_SIZE: f32 = 48.0;
+/// The world is a fixed 16:9 map; the camera scales to fit it.
+pub const MAP_WIDTH_TILES: f32 = 32.0;
+pub const MAP_HEIGHT_TILES: f32 = 18.0;
+pub const RIVER_HALF_WIDTH: f32 = 0.9 * TILE_SIZE;
 
 pub const Z_TILE: f32 = 0.0;
 pub const Z_TOWER: f32 = 10.0;
@@ -186,6 +190,7 @@ pub const UBOAT_SUBMERGED_SPEED_FACTOR: f32 = 0.7;
 pub const UBOAT_TRIM_SECONDS: f32 = 1.4;
 /// Seconds per torpedo while docked.
 pub const UBOAT_REARM_SECONDS: f32 = 1.6;
+/// Must be shorter than the longest straight of the river (`map::tests`).
 pub const TORPEDO_RUN: f32 = 9.0 * TILE_SIZE;
 pub const TORPEDO_SPEED: f32 = 340.0;
 

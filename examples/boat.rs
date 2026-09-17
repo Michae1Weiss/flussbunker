@@ -3,7 +3,7 @@
 
 use bevy::prelude::*;
 use flussbunker::balance::EnemyKind;
-use flussbunker::game::enemy::{depth_charge_bundle, enemy_bundle};
+use flussbunker::game::enemy::{enemy_bundle, shelling_bundle};
 use flussbunker::game::map::RiverPath;
 use flussbunker::game::{combat, economy, enemy, input, map, projectile, radial, uboat};
 use flussbunker::harness;
@@ -50,8 +50,8 @@ fn stream_ships(
     }
     if stream.heavy.tick(time.delta()).just_finished() {
         let mut ship = commands.spawn(enemy_bundle(EnemyKind::Destroyer, path.spawn_point()));
-        if let Some(charges) = depth_charge_bundle(EnemyKind::Destroyer) {
-            ship.insert(charges);
+        if let Some(shelling) = shelling_bundle(EnemyKind::Destroyer) {
+            ship.insert(shelling);
         }
     }
 }

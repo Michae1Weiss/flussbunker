@@ -56,7 +56,7 @@ fn spawn_title(mut commands: Commands) {
                 [0.60, 0.88, 1.00]
             ),
             line(
-                "Zerstoerer sind gepanzert - und sie jagen dich. Roter Strahl: tauchen.",
+                "Zerstoerer sind gepanzert und schiessen sich auf dich ein. Dann: tauchen.",
                 19.0,
                 [0.82, 0.55, 0.50]
             ),

@@ -111,8 +111,9 @@ pub enum EnemyKind {
     MotorTorpedoBoat,
     Corvette,
     LandingCraft,
-    /// The only enemy that can damage the U-boat.
+    /// The only enemy that shoots at the U-boat.
     Destroyer,
+    /// Belt armour above any shell's damage: torpedoes only.
     Monitor,
 }
 
@@ -135,16 +136,21 @@ pub struct EnemyStats {
     pub breach_damage: u32,
     pub size: f32,
     pub rgb: [f32; 3],
-    pub depth_charge: Option<DepthCharge>,
+    pub shelling: Option<Shelling>,
 }
 
+/// Gunfire against a surfaced U-boat in range.
 #[derive(Clone, Copy)]
-pub struct DepthCharge {
+pub struct Shelling {
     pub range: f32,
     pub damage: f32,
-    /// Seconds of visible contact before a charge drops.
-    pub acquire: f32,
+    /// Seconds of visible near misses before the first hit; resets when contact is lost.
+    pub ranging: f32,
+    pub reload: f32,
 }
+
+/// Minimum gap between a ship and the one ahead, beyond their hull sizes.
+pub const CONVOY_GAP: f32 = 0.3 * TILE_SIZE;
 
 impl EnemyKind {
     pub const fn stats(self) -> EnemyStats {
@@ -154,68 +160,65 @@ impl EnemyKind {
                 class: SizeClass::Light,
                 health: 38.0,
                 armor: 0.0,
-                speed: 118.0,
-                bounty: 9,
+                speed: 2.45 * TILE_SIZE,
+                bounty: 4,
                 breach_damage: 1,
                 size: 16.0,
                 rgb: [0.55, 0.75, 0.55],
-                depth_charge: None,
+                shelling: None,
             },
             EnemyKind::Corvette => EnemyStats {
                 name: "Korvette",
                 class: SizeClass::Medium,
-                health: 130.0,
+                health: 120.0,
                 armor: 3.0,
-                speed: 62.0,
-                bounty: 17,
+                speed: 1.3 * TILE_SIZE,
+                bounty: 12,
                 breach_damage: 2,
                 size: 24.0,
                 rgb: [0.45, 0.62, 0.72],
-                depth_charge: None,
+                shelling: None,
             },
             EnemyKind::LandingCraft => EnemyStats {
                 name: "Landungsboot",
                 class: SizeClass::Medium,
                 health: 300.0,
                 armor: 1.0,
-                speed: 38.0,
-                bounty: 30,
+                speed: 0.8 * TILE_SIZE,
+                bounty: 20,
                 breach_damage: 5,
                 size: 30.0,
                 rgb: [0.62, 0.58, 0.40],
-                depth_charge: None,
+                shelling: None,
             },
             EnemyKind::Destroyer => EnemyStats {
                 name: "Zerstoerer",
                 class: SizeClass::Heavy,
                 health: 380.0,
-                armor: 8.0,
-                speed: 50.0,
-                bounty: 55,
+                armor: 12.0,
+                speed: 1.05 * TILE_SIZE,
+                bounty: 48,
                 breach_damage: 4,
                 size: 32.0,
                 rgb: [0.72, 0.35, 0.35],
-                depth_charge: Some(DepthCharge {
+                shelling: Some(Shelling {
                     range: 2.6 * TILE_SIZE,
-                    damage: 55.0,
-                    acquire: 1.9,
+                    damage: 18.0,
+                    ranging: 3.0,
+                    reload: 1.5,
                 }),
             },
             EnemyKind::Monitor => EnemyStats {
                 name: "Monitor",
                 class: SizeClass::Capital,
-                health: 1100.0,
-                armor: 12.0,
-                speed: 30.0,
-                bounty: 120,
+                health: 1200.0,
+                armor: 100.0,
+                speed: 0.63 * TILE_SIZE,
+                bounty: 100,
                 breach_damage: 8,
                 size: 40.0,
                 rgb: [0.80, 0.30, 0.45],
-                depth_charge: Some(DepthCharge {
-                    range: 2.2 * TILE_SIZE,
-                    damage: 45.0,
-                    acquire: 2.4,
-                }),
+                shelling: None,
             },
         }
     }

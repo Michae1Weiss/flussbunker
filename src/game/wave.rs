@@ -5,7 +5,7 @@ use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
 use crate::balance::{EnemyKind, WAVES};
-use crate::game::enemy::{depth_charge_bundle, enemy_bundle, Enemy};
+use crate::game::enemy::{enemy_bundle, shelling_bundle, Enemy};
 use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -95,8 +95,8 @@ fn spawn_boats(
 
 fn spawn_one(commands: &mut Commands, kind: EnemyKind, at: Vec2) {
     let mut entity = commands.spawn(enemy_bundle(kind, at));
-    if let Some(charges) = depth_charge_bundle(kind) {
-        entity.insert(charges);
+    if let Some(shelling) = shelling_bundle(kind) {
+        entity.insert(shelling);
     }
 }
 

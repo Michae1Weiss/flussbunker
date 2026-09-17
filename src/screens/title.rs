@@ -26,7 +26,7 @@ fn spawn_title(mut commands: Commands) {
                 [0.72, 0.76, 0.80]
             ),
             line(
-                "1 / 2 / 3   Geschuetz waehlen  -  Linksklick auf Land: bauen",
+                "Linksklick auf einen Bauplatz: Radialmenue (bauen, ausbauen, verkaufen)",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),

@@ -1,7 +1,5 @@
 //! Every tuning number, engine-free. Ranges and speeds are world units; times are seconds.
 
-use crate::game::combat::DamageKind;
-
 pub const TILE_SIZE: f32 = 48.0;
 /// The world is a fixed 16:9 map; the camera scales to fit it.
 pub const MAP_WIDTH_TILES: f32 = 32.0;
@@ -15,73 +13,96 @@ pub const Z_TOWER: f32 = 10.0;
 pub const Z_UBOAT: f32 = 15.0;
 pub const Z_ENEMY: f32 = 20.0;
 pub const Z_PROJECTILE: f32 = 30.0;
+pub const Z_UI: f32 = 50.0;
 
 pub const STARTING_MARKS: u32 = 170;
 pub const STARTING_INTEGRITY: u32 = 20;
 
+/// Three roles, `TOWER_TIERS` tiers each; `stats(tier)` describes one tier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TowerKind {
+    /// Naval flak: anti-swarm.
     Flak,
-    Mortar,
-    Coastal,
+    /// 8.8 cm coastal gun: precise all-rounder, armour-piercing from tier 1.
+    Gun88,
+    /// 15 cm battery: heavy and slow, one to three barrels.
+    Heavy15,
 }
+
+pub const TOWER_TIERS: u8 = 3;
+/// Seconds a new turret is under construction and silent.
+pub const TOWER_BUILD_SECONDS: f32 = 2.5;
+/// Fraction of the RM invested in a turret returned on selling.
+pub const SELL_REFUND: f32 = 0.6;
+/// Armour multiplier for armour-piercing shells.
+pub const AP_ARMOUR_FACTOR: f32 = 0.5;
+/// Seconds the sell entry must be held.
+pub const SELL_HOLD_SECONDS: f32 = 0.5;
+/// World-unit distance of radial menu entries from the anchor, and their hit radius.
+pub const RADIAL_RADIUS: f32 = 1.5 * TILE_SIZE;
+pub const RADIAL_ENTRY_RADIUS: f32 = 0.55 * TILE_SIZE;
 
 pub struct TowerStats {
     pub name: &'static str,
-    pub hotkey: &'static str,
+    /// RM for this tier: the build cost at tier 0, the upgrade cost above.
     pub cost: u32,
     pub range: f32,
     pub damage: f32,
     pub reload: f32,
     pub projectile_speed: f32,
-    /// Impact radius; 0 = single target.
-    pub splash: f32,
-    pub damage_kind: DamageKind,
+    /// Shells per volley.
+    pub barrels: u8,
+    pub ap: bool,
     pub rgb: [f32; 3],
 }
 
 impl TowerKind {
-    pub const ALL: [TowerKind; 3] = [TowerKind::Flak, TowerKind::Mortar, TowerKind::Coastal];
+    pub const ALL: [TowerKind; 3] = [TowerKind::Flak, TowerKind::Gun88, TowerKind::Heavy15];
 
-    pub const fn stats(self) -> TowerStats {
+    /// # Panics
+    /// If `tier >= TOWER_TIERS`.
+    pub const fn stats(self, tier: u8) -> TowerStats {
+        assert!(tier < TOWER_TIERS);
         match self {
             TowerKind::Flak => TowerStats {
-                name: "Flak 38",
-                hotkey: "1",
-                cost: 60,
+                name: "Marineflak",
+                cost: [60, 50, 80][tier as usize],
                 range: 2.6 * TILE_SIZE,
                 damage: 9.0,
-                reload: 0.35,
+                reload: if tier == 0 { 0.35 } else { 0.28 },
                 projectile_speed: 900.0,
-                splash: 0.0,
-                damage_kind: DamageKind::Shell,
+                barrels: if tier == 2 { 2 } else { 1 },
+                ap: false,
                 rgb: [0.85, 0.78, 0.45],
             },
-            TowerKind::Mortar => TowerStats {
-                name: "Granatwerfer",
-                hotkey: "2",
-                cost: 115,
-                range: 3.4 * TILE_SIZE,
-                damage: 15.0,
-                reload: 1.5,
-                projectile_speed: 420.0,
-                splash: 44.0,
-                damage_kind: DamageKind::Shell,
+            TowerKind::Gun88 => TowerStats {
+                name: "8,8 cm",
+                cost: [120, 100, 150][tier as usize],
+                range: 3.6 * TILE_SIZE,
+                damage: 32.0,
+                reload: 1.4,
+                projectile_speed: 800.0,
+                barrels: if tier == 2 { 2 } else { 1 },
+                ap: tier >= 1,
                 rgb: [0.55, 0.70, 0.50],
             },
-            TowerKind::Coastal => TowerStats {
-                name: "15 cm Kuestengeschuetz",
-                hotkey: "3",
-                cost: 175,
+            TowerKind::Heavy15 => TowerStats {
+                name: "15 cm",
+                cost: [240, 180, 280][tier as usize],
                 range: 4.4 * TILE_SIZE,
-                damage: 52.0,
-                reload: 2.2,
+                damage: 100.0,
+                reload: 3.0,
                 projectile_speed: 620.0,
-                splash: 0.0,
-                damage_kind: DamageKind::Shell,
+                barrels: tier + 1,
+                ap: false,
                 rgb: [0.80, 0.45, 0.30],
             },
         }
+    }
+
+    /// RM spent to reach `tier` from nothing.
+    pub fn total_cost(self, tier: u8) -> u32 {
+        (0..=tier).map(|t| self.stats(t).cost).sum()
     }
 }
 

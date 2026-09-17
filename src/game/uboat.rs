@@ -379,9 +379,8 @@ fn fire_deck_gun(
             origin,
             entity,
             DECK_GUN_DAMAGE,
-            DamageKind::Shell,
+            false,
             DECK_GUN_SHELL_SPEED,
-            0.0,
         ));
     }
 }
@@ -410,6 +409,7 @@ fn collide_with_ships(
                         target: ship,
                         amount: ship_health.max,
                         kind: DamageKind::Ram,
+                        ap: false,
                     });
                     RAM_LIGHT_COST
                 }
@@ -426,6 +426,7 @@ fn collide_with_ships(
                 target: boat,
                 amount: health.max * cost,
                 kind: DamageKind::Ram,
+                ap: false,
             });
         }
     }

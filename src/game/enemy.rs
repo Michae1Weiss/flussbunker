@@ -154,6 +154,7 @@ fn drop_depth_charges(
                 target,
                 amount: charges.damage,
                 kind: DamageKind::Shell,
+                ap: false,
             });
             commands.spawn(splash_bundle(
                 boat.translation.truncate(),

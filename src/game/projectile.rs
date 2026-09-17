@@ -27,10 +27,8 @@ pub fn plugin(app: &mut App) {
 pub struct Shell {
     pub target: Entity,
     pub damage: f32,
-    pub kind: DamageKind,
+    pub ap: bool,
     pub speed: f32,
-    /// Impact radius in world units; 0 = single target.
-    pub splash: f32,
 }
 
 #[derive(Component)]
@@ -49,22 +47,20 @@ pub fn shell_bundle(
     origin: Vec2,
     target: Entity,
     damage: f32,
-    kind: DamageKind,
+    ap: bool,
     speed: f32,
-    splash: f32,
 ) -> impl Bundle {
     (
         Name::new("Shell"),
         Shell {
             target,
             damage,
-            kind,
+            ap,
             speed,
-            splash,
         },
         Sprite {
             color: Color::srgb(1.0, 0.92, 0.60),
-            custom_size: Some(Vec2::splat(if splash > 0.0 { 6.0 } else { 4.0 })),
+            custom_size: Some(Vec2::splat(4.0)),
             ..default()
         },
         Transform::from_translation(origin.extend(Z_PROJECTILE)),
@@ -119,7 +115,6 @@ fn fly_shells(
     mut damage: MessageWriter<Damage>,
     mut shells: Query<(Entity, &mut Transform, &Shell)>,
     targets: Query<&Transform, Without<Shell>>,
-    hittable: Query<(Entity, &Transform), (With<crate::game::enemy::Enemy>, Without<Shell>)>,
 ) {
     let step = time.delta_secs();
 
@@ -135,33 +130,13 @@ fn fly_shells(
 
         if to_target.length() <= HIT_RADIUS.max(shell.speed * step) {
             let impact = target.translation.truncate();
-
-            if shell.splash > 0.0 {
-                for (other, other_transform) in &hittable {
-                    if impact.distance_squared(other_transform.translation.truncate())
-                        <= shell.splash * shell.splash
-                    {
-                        damage.write(Damage {
-                            target: other,
-                            amount: shell.damage,
-                            kind: shell.kind,
-                        });
-                    }
-                }
-                commands.spawn(splash_bundle(
-                    impact,
-                    Color::srgb(1.0, 0.75, 0.40),
-                    shell.splash,
-                ));
-            } else {
-                damage.write(Damage {
-                    target: shell.target,
-                    amount: shell.damage,
-                    kind: shell.kind,
-                });
-                commands.spawn(splash_bundle(impact, Color::srgb(1.0, 0.85, 0.55), 10.0));
-            }
-
+            damage.write(Damage {
+                target: shell.target,
+                amount: shell.damage,
+                kind: DamageKind::Shell,
+                ap: shell.ap,
+            });
+            commands.spawn(splash_bundle(impact, Color::srgb(1.0, 0.85, 0.55), 10.0));
             commands.entity(entity).despawn();
             continue;
         }
@@ -213,6 +188,7 @@ fn run_torpedoes(
                 target,
                 amount: torpedo.damage,
                 kind: DamageKind::Torpedo,
+                ap: false,
             });
             commands.spawn(splash_bundle(
                 enemy.translation.truncate(),

@@ -1,35 +1,34 @@
 //! The only module that reads keyboard or mouse. Turns input into intent messages
-//! in `Update`; the simulation consumes them in `FixedUpdate`.
+//! in `Update`; the simulation consumes them in `FixedUpdate`. Priority: radial menu
+//! before world. Sole writer of `SellHold`.
 
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
-use crate::balance::{TowerKind, BUILD_SPOT_RADIUS};
+use crate::balance::{TowerKind, BUILD_SPOT_RADIUS, SELL_HOLD_SECONDS};
 use crate::game::map::{BuildSpot, RiverPath};
+use crate::game::radial::{Action, CloseMenu, Menu, OpenMenu, Target};
 use crate::game::tower::Occupied;
 use crate::game_plugin::Frame;
 
 pub fn plugin(app: &mut App) {
-    app.init_resource::<SelectedTool>()
+    app.init_resource::<SellHold>()
         .add_message::<BuildTower>()
+        .add_message::<UpgradeTower>()
+        .add_message::<SellTower>()
+        .add_message::<CycleTargeting>()
         .add_message::<MoveUBoat>()
         .add_message::<ToggleTrim>()
         .add_message::<FireTorpedo>()
         .add_message::<CommissionUBoat>()
-        .add_systems(
-            Update,
-            (select_tool, read_intents).chain().in_set(Frame::Input),
-        )
+        .add_systems(Update, read_intents.in_set(Frame::Input))
         .add_systems(Update, draw_hover.in_set(Frame::Present));
 }
 
-/// Index into `TowerKind::ALL`; `kind` clamps it.
-#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedTool(pub usize);
-
-impl SelectedTool {
-    pub fn kind(self) -> TowerKind {
-        TowerKind::ALL[self.0.min(TowerKind::ALL.len() - 1)]
-    }
+/// Progress of a hold-to-sell, 0 to 1.
+#[derive(Resource, Default)]
+pub struct SellHold {
+    pub progress: f32,
 }
 
 #[derive(Message)]
@@ -37,6 +36,21 @@ pub struct BuildTower {
     pub kind: TowerKind,
     /// A `BuildSpot` entity.
     pub spot: Entity,
+}
+
+#[derive(Message)]
+pub struct UpgradeTower {
+    pub tower: Entity,
+}
+
+#[derive(Message)]
+pub struct SellTower {
+    pub tower: Entity,
+}
+
+#[derive(Message)]
+pub struct CycleTargeting {
+    pub tower: Entity,
 }
 
 #[derive(Message)]
@@ -57,68 +71,114 @@ pub struct CommissionUBoat {
     pub free: bool,
 }
 
-fn select_tool(keys: Res<ButtonInput<KeyCode>>, mut tool: ResMut<SelectedTool>) {
-    for (index, key) in [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3]
-        .iter()
-        .enumerate()
-    {
-        if keys.just_pressed(*key) {
-            *tool = SelectedTool(index);
-        }
-    }
+#[derive(SystemParam)]
+struct Intents<'w> {
+    build: MessageWriter<'w, BuildTower>,
+    upgrade: MessageWriter<'w, UpgradeTower>,
+    sell: MessageWriter<'w, SellTower>,
+    cycle: MessageWriter<'w, CycleTargeting>,
+    open_menu: MessageWriter<'w, OpenMenu>,
+    close_menu: MessageWriter<'w, CloseMenu>,
+    move_boat: MessageWriter<'w, MoveUBoat>,
+    trim: MessageWriter<'w, ToggleTrim>,
+    fire: MessageWriter<'w, FireTorpedo>,
+    commission: MessageWriter<'w, CommissionUBoat>,
 }
 
 fn read_intents(
+    time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
-    tool: Res<SelectedTool>,
     path: Res<RiverPath>,
-    spots: Query<(Entity, &Transform), With<BuildSpot>>,
+    menu: Res<Menu>,
+    mut hold: ResMut<SellHold>,
+    spots: Query<(Entity, &Transform, Option<&Occupied>), With<BuildSpot>>,
     camera: Single<(&Camera, &GlobalTransform)>,
     window: Single<&Window>,
-    mut build: MessageWriter<BuildTower>,
-    mut move_boat: MessageWriter<MoveUBoat>,
-    mut trim: MessageWriter<ToggleTrim>,
-    mut fire: MessageWriter<FireTorpedo>,
-    mut commission: MessageWriter<CommissionUBoat>,
+    mut intents: Intents,
 ) {
     if keys.just_pressed(KeyCode::KeyT) || buttons.just_pressed(MouseButton::Right) {
-        trim.write(ToggleTrim);
+        intents.trim.write(ToggleTrim);
     }
     if keys.pressed(KeyCode::Space) {
-        fire.write(FireTorpedo);
+        intents.fire.write(FireTorpedo);
     }
     if keys.just_pressed(KeyCode::KeyN) {
-        commission.write(CommissionUBoat { free: false });
+        intents.commission.write(CommissionUBoat { free: false });
+    }
+    if keys.just_pressed(KeyCode::Escape) {
+        intents.close_menu.write(CloseMenu);
+    }
+
+    let cursor = cursor_world(&camera, *window);
+
+    if let Some(open) = menu.open.as_ref() {
+        let hit = cursor.and_then(|c| menu.hit(c)).map(|e| e.action);
+        let tower = match open.target {
+            Target::Turret { tower, .. } => Some(tower),
+            Target::Spot(_) => None,
+        };
+
+        // Holding on the sell entry fills the ring; leaving it or releasing cancels.
+        if buttons.pressed(MouseButton::Left) && hit == Some(Action::Sell) {
+            hold.progress += time.delta_secs() / SELL_HOLD_SECONDS;
+            if hold.progress >= 1.0 {
+                hold.progress = 0.0;
+                if let Some(tower) = tower {
+                    intents.sell.write(SellTower { tower });
+                }
+                intents.close_menu.write(CloseMenu);
+            }
+            return;
+        }
+        hold.progress = 0.0;
+
+        if !buttons.just_pressed(MouseButton::Left) {
+            return;
+        }
+        match (hit, open.target, tower) {
+            (Some(Action::Build(kind)), Target::Spot(spot), _) => {
+                intents.build.write(BuildTower { kind, spot });
+                intents.close_menu.write(CloseMenu);
+            }
+            (Some(Action::Upgrade), _, Some(tower)) => {
+                intents.upgrade.write(UpgradeTower { tower });
+                intents.close_menu.write(CloseMenu);
+            }
+            (Some(Action::Targeting), _, Some(tower)) => {
+                intents.cycle.write(CycleTargeting { tower });
+            }
+            (Some(Action::Sell), _, _) => {}
+            _ => {
+                intents.close_menu.write(CloseMenu);
+            }
+        }
+        return;
     }
 
     if !buttons.just_pressed(MouseButton::Left) {
         return;
     }
-    let Some(world) = cursor_world(&camera, *window) else {
+    let Some(world) = cursor else {
         return;
     };
 
-    if path.contains(world) {
-        let (along, _) = path.project(world);
-        move_boat.write(MoveUBoat { along });
-    } else if let Some(spot) = spot_at(world, spots.iter()) {
-        build.write(BuildTower {
-            kind: tool.kind(),
-            spot,
+    if let Some((spot, transform, occupied)) = spot_at(world, spots.iter()) {
+        let target = match occupied {
+            Some(occupied) => Target::Turret {
+                spot,
+                tower: occupied.0,
+            },
+            None => Target::Spot(spot),
+        };
+        intents.open_menu.write(OpenMenu {
+            target,
+            anchor: transform.translation.truncate(),
         });
+    } else if path.contains(world) {
+        let (along, _) = path.project(world);
+        intents.move_boat.write(MoveUBoat { along });
     }
-}
-
-/// The build spot under `world`, if any.
-pub fn spot_at<'a>(
-    world: Vec2,
-    spots: impl Iterator<Item = (Entity, &'a Transform)>,
-) -> Option<Entity> {
-    spots
-        .filter(|(_, t)| t.translation.truncate().distance(world) <= BUILD_SPOT_RADIUS)
-        .map(|(entity, _)| entity)
-        .next()
 }
 
 /// Cursor in world units; `None` when the cursor is outside the window.
@@ -128,17 +188,37 @@ pub fn cursor_world(camera: &(&Camera, &GlobalTransform), window: &Window) -> Op
     camera.viewport_to_world_2d(camera_transform, cursor).ok()
 }
 
+/// The build spot under `world`, if any.
+fn spot_at<'a, O>(
+    world: Vec2,
+    mut spots: impl Iterator<Item = (Entity, &'a Transform, O)>,
+) -> Option<(Entity, &'a Transform, O)> {
+    spots.find(|(_, t, _)| t.translation.truncate().distance(world) <= BUILD_SPOT_RADIUS)
+}
+
 fn draw_hover(
     mut gizmos: Gizmos,
-    tool: Res<SelectedTool>,
     path: Res<RiverPath>,
+    menu: Res<Menu>,
     camera: Single<(&Camera, &GlobalTransform)>,
     window: Single<&Window>,
     spots: Query<(Entity, &Transform, Has<Occupied>), With<BuildSpot>>,
 ) {
+    if menu.open.is_some() {
+        return;
+    }
     let Some(world) = cursor_world(&camera, *window) else {
         return;
     };
+
+    if let Some((_, transform, _)) = spot_at(world, spots.iter()) {
+        gizmos.circle_2d(
+            Isometry2d::from_translation(transform.translation.truncate()),
+            BUILD_SPOT_RADIUS,
+            Color::srgb(0.85, 0.85, 0.6),
+        );
+        return;
+    }
 
     if path.contains(world) {
         let (along, _) = path.project(world);
@@ -146,29 +226,5 @@ fn draw_hover(
         let here = path.point_at(along);
         gizmos.circle_2d(Isometry2d::from_translation(here), 6.0, lane);
         gizmos.line_2d(here, path.point_at(path.straight_end(along, false)), lane);
-        return;
-    }
-
-    let Some(spot) = spot_at(world, spots.iter().map(|(e, t, _)| (e, t))) else {
-        return;
-    };
-    let (_, transform, occupied) = spots.get(spot).unwrap();
-    let centre = transform.translation.truncate();
-    let color = if occupied {
-        Color::srgb(0.8, 0.3, 0.3)
-    } else {
-        Color::srgb(0.85, 0.85, 0.6)
-    };
-    gizmos.circle_2d(
-        Isometry2d::from_translation(centre),
-        BUILD_SPOT_RADIUS,
-        color,
-    );
-    if !occupied {
-        gizmos.circle_2d(
-            Isometry2d::from_translation(centre),
-            tool.kind().stats().range,
-            color.with_alpha(0.35),
-        );
     }
 }

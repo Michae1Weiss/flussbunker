@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use flussbunker::balance::EnemyKind;
 use flussbunker::game::enemy::{depth_charge_bundle, enemy_bundle};
 use flussbunker::game::map::RiverPath;
-use flussbunker::game::{combat, economy, enemy, input, map, projectile, uboat};
+use flussbunker::game::{combat, economy, enemy, input, map, projectile, radial, uboat};
 use flussbunker::harness;
 
 fn main() -> AppExit {
@@ -19,6 +19,7 @@ fn main() -> AppExit {
             projectile::plugin,
             uboat::plugin,
             economy::plugin,
+            radial::plugin,
             input::plugin,
         ))
         .insert_resource(Stream {

@@ -1,14 +1,13 @@
-//! Status line, build bar, boat panel, enemy health bars. Reads other features'
+//! Status line, boat panel, enemy health bars. Reads other features'
 //! state, writes none of it.
 
 use bevy::prelude::*;
 
-use crate::balance::{rank_for, TowerKind, UBOAT_REPLACEMENT_COST, WAVES};
+use crate::balance::{rank_for, UBOAT_REPLACEMENT_COST, WAVES};
 use crate::game::bunker::Integrity;
 use crate::game::combat::Health;
 use crate::game::economy::Treasury;
 use crate::game::enemy::Enemy;
-use crate::game::input::SelectedTool;
 use crate::game::uboat::{Flotilla, Torpedoes, Trim, UBoat};
 use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
@@ -18,13 +17,7 @@ pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Gameplay), spawn_hud)
         .add_systems(
             Update,
-            (
-                update_status,
-                update_build_bar,
-                update_boat_panel,
-                draw_health_bars,
-            )
-                .in_set(Frame::Present),
+            (update_status, update_boat_panel, draw_health_bars).in_set(Frame::Present),
         );
 }
 
@@ -33,10 +26,6 @@ struct StatusLine;
 
 #[derive(Component)]
 struct BoatPanel;
-
-/// Index into `TowerKind::ALL`.
-#[derive(Component)]
-struct BuildSlot(usize);
 
 fn text(size: f32) -> impl Bundle {
     (
@@ -63,24 +52,6 @@ fn spawn_hud(mut commands: Commands) {
         },
         children![(StatusLine, text(17.0)), (BoatPanel, text(15.0))],
     ));
-
-    let mut bar = commands.spawn((
-        Name::new("Build bar"),
-        DespawnOnExit(Screen::Gameplay),
-        Node {
-            position_type: PositionType::Absolute,
-            bottom: Val::Px(10.0),
-            left: Val::Px(12.0),
-            flex_direction: FlexDirection::Row,
-            column_gap: Val::Px(18.0),
-            ..default()
-        },
-    ));
-    bar.with_children(|parent| {
-        for index in 0..TowerKind::ALL.len() {
-            parent.spawn((BuildSlot(index), text(16.0)));
-        }
-    });
 }
 
 fn update_status(
@@ -108,32 +79,6 @@ fn update_status(
         wave.label(),
         phase,
     );
-}
-
-fn update_build_bar(
-    treasury: Res<Treasury>,
-    tool: Res<SelectedTool>,
-    mut slots: Query<(&BuildSlot, &mut Text, &mut TextColor)>,
-) {
-    for (slot, mut text, mut color) in &mut slots {
-        let kind = TowerKind::ALL[slot.0];
-        let stats = kind.stats();
-        let selected = tool.0 == slot.0;
-        let affordable = treasury.marks >= stats.cost;
-
-        text.0 = format!(
-            "{}[{}] {}  {} RM",
-            if selected { "> " } else { "  " },
-            stats.hotkey,
-            stats.name,
-            stats.cost
-        );
-        color.0 = match (selected, affordable) {
-            (true, true) => Color::srgb(1.0, 0.95, 0.65),
-            (false, true) => Color::srgb(0.80, 0.84, 0.80),
-            (_, false) => Color::srgb(0.42, 0.40, 0.38),
-        };
-    }
 }
 
 fn update_boat_panel(

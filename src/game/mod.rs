@@ -11,6 +11,7 @@ pub mod hud;
 pub mod input;
 pub mod map;
 pub mod projectile;
+pub mod radial;
 pub mod tower;
 pub mod uboat;
 pub mod wave;
@@ -26,6 +27,7 @@ pub fn plugin(app: &mut App) {
         wave::plugin,
         economy::plugin,
         bunker::plugin,
+        radial::plugin,
         input::plugin,
         hud::plugin,
     ));

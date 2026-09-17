@@ -3,6 +3,7 @@
 
 use bevy::prelude::*;
 
+use crate::balance::AP_ARMOUR_FACTOR;
 use crate::game_plugin::Sim;
 
 pub fn plugin(app: &mut App) {
@@ -50,6 +51,8 @@ pub struct Damage {
     pub target: Entity,
     pub amount: f32,
     pub kind: DamageKind,
+    /// Armour-piercing shell: armour counts `AP_ARMOUR_FACTOR`.
+    pub ap: bool,
 }
 
 /// Kind of the most recent hit; inserted by `apply_damage`.
@@ -76,7 +79,8 @@ fn apply_damage(
         let effective = match hit.kind {
             // 10 % floor: armour never blocks a shell entirely.
             DamageKind::Shell => {
-                let armor = armor.map_or(0.0, |a| a.0);
+                let factor = if hit.ap { AP_ARMOUR_FACTOR } else { 1.0 };
+                let armor = armor.map_or(0.0, |a| a.0) * factor;
                 (hit.amount - armor).max(hit.amount * 0.1)
             }
             DamageKind::Torpedo | DamageKind::Ram => hit.amount,
@@ -116,6 +120,7 @@ mod tests {
                 target,
                 amount,
                 kind,
+                ap: false,
             });
         app.update();
     }
@@ -141,6 +146,30 @@ mod tests {
         assert_eq!(
             app.world().entity(boat).get::<Health>().unwrap().current,
             80.0
+        );
+    }
+
+    #[test]
+    fn armour_piercing_halves_armour() {
+        let mut app = test_app();
+        let boat = app
+            .world_mut()
+            .spawn((Health::new(100.0), Armor(10.0)))
+            .id();
+
+        app.world_mut()
+            .resource_mut::<Messages<Damage>>()
+            .write(Damage {
+                target: boat,
+                amount: 20.0,
+                kind: DamageKind::Shell,
+                ap: true,
+            });
+        app.update();
+
+        assert_eq!(
+            app.world().entity(boat).get::<Health>().unwrap().current,
+            85.0
         );
     }
 

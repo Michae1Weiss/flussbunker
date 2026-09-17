@@ -1,10 +1,4 @@
-//! Bunker integrity — this game's "lives".
-//!
-//! Small on purpose. It reads one message, subtracts, and loses the game at
-//! zero. The temptation is to fold this into a `GameState` resource alongside
-//! money and wave number; resist it. Three focused resources can be changed
-//! independently, while one god-resource means every system that touches money
-//! also gets mutable access to your lives.
+//! Bunker integrity, the run's lives. Sole writer of `Integrity`; ends the run at 0.
 
 use bevy::prelude::*;
 
@@ -38,9 +32,6 @@ fn take_breaches(
     mut next: ResMut<NextState<Screen>>,
 ) {
     for breach in breaches.read() {
-        // `saturating_sub`: an unsigned underflow here would wrap to four
-        // billion integrity and silently make the game unlosable. Defining the
-        // error out of existence beats asserting on it.
         integrity.0 = integrity.0.saturating_sub(breach.damage);
     }
 

@@ -1,13 +1,5 @@
-//! The gameplay feature group.
-//!
-//! Read the list below as the game's architecture: eleven features, each owning
-//! its own components, resources and messages. Nothing here knows what is
-//! inside them.
-//!
-//! Note what is *absent*: there is no `reset_game` system. Each feature resets
-//! its own state in `OnEnter(Screen::Gameplay)`. A central reset would have to
-//! reach into every other feature's resources — that is exactly the coupling
-//! this layout exists to prevent.
+//! Gameplay feature plugins. Each feature resets its own state in
+//! `OnEnter(Screen::Gameplay)`; there is no central reset.
 
 use bevy::prelude::*;
 
@@ -25,15 +17,15 @@ pub mod wave;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
-        map::plugin,        // static world: tiles, the river, coordinate maths
-        combat::plugin,     // shared contract: Health, Armor, Damage, Sunk
-        enemy::plugin,      // boats: movement, breaching, depth charges
-        tower::plugin,      // shore batteries: construction, targeting, firing
-        projectile::plugin, // shells and torpedoes in flight
-        uboat::plugin,      // the pen, sorties, torpedoes
-        wave::plugin,       // pacing: what spawns, when, and who won
-        economy::plugin,    // marks and bounties
-        bunker::plugin,     // integrity, i.e. lives
+        map::plugin,
+        combat::plugin,
+        enemy::plugin,
+        tower::plugin,
+        projectile::plugin,
+        uboat::plugin,
+        wave::plugin,
+        economy::plugin,
+        bunker::plugin,
         input::plugin,
         hud::plugin,
     ));

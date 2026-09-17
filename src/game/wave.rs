@@ -1,15 +1,5 @@
-//! Wave pacing: what arrives, when, and who won.
-//!
-//! Two pacing rules are encoded here, both of them design decisions rather
-//! than technical ones:
-//!
-//! * **Waves never auto-start.** The player presses Space. A guaranteed
-//!   decision window between waves is what separates "tower defense" from
-//!   "watch a screensaver" — it is the moment the whole build-adapt loop
-//!   actually happens.
-//! * **The wave is over only when the river is empty**, not when the last boat
-//!   has spawned. Otherwise the prep phase overlaps with combat and the player
-//!   never gets the pause they were promised.
+//! Wave pacing: spawns groups on their schedule, ends a wave when the river is
+//! empty, declares victory after the last one. Sole writer of `WaveState`.
 
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
@@ -25,7 +15,8 @@ pub(super) fn plugin(app: &mut App) {
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(
             Update,
-            start_wave.run_if(in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Space))),
+            start_wave
+                .run_if(in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Space))),
         )
         .add_systems(
             FixedUpdate,
@@ -37,9 +28,9 @@ pub(super) fn plugin(app: &mut App) {
 pub struct WaveState {
     pub index: usize,
     pub running: bool,
-    /// Seconds since the wave started; groups compare against their lead-in.
+    /// Seconds since the wave started.
     elapsed: f32,
-    /// How many of each group have already been put in the water.
+    /// Per group, boats already spawned.
     spawned: Vec<u32>,
 }
 
@@ -81,10 +72,6 @@ fn start_wave(mut wave: ResMut<WaveState>) {
     wave.spawned = vec![0; WAVES[wave.index].groups.len()];
 }
 
-/// Each group is an independent little schedule: wait `lead_in`, then release
-/// one boat every `spacing` seconds. Overlapping groups is what makes wave 5
-/// feel like a fleet instead of a queue — and it falls out of the data with no
-/// extra machinery.
 fn spawn_boats(
     time: Res<Time>,
     mut commands: Commands,
@@ -108,8 +95,6 @@ fn spawn_boats(
 
 fn spawn_one(commands: &mut Commands, kind: EnemyKind, at: Vec2) {
     let mut entity = commands.spawn(enemy_bundle(kind, at));
-    // Conditional extras go on afterwards. A bundle describes what is always
-    // true; anything optional is an `insert`.
     if let Some(charges) = depth_charge_bundle(kind) {
         entity.insert(charges);
     }

@@ -1,19 +1,14 @@
-//! Shore batteries: acquire a target, pull the trigger.
-//!
-//! No physics engine, no spatial index, no colliders. "Is that boat in range"
-//! is `distance_squared <= range * range` — one comparison, no square root, and
-//! it stays correct at any frame rate. A tower defense with a few hundred
-//! entities does not need a broadphase; adding one before a profiler says so is
-//! complexity bought with nothing.
+//! Shore batteries: construction from `BuildTower`, target selection, firing.
+//! Sole writer of `Tower`, `TowerType`, `Range`, `Gun`.
 
 use bevy::prelude::*;
 
 use crate::balance::{TowerKind, Z_TOWER};
-use crate::game::economy::Treasury;
-use crate::game::map::{MapGrid, Tile};
-use crate::game::input::BuildTower;
 use crate::game::combat::DamageKind;
+use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, PathProgress};
+use crate::game::input::BuildTower;
+use crate::game::map::{MapGrid, Tile};
 use crate::game::projectile::shell_bundle;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -21,7 +16,10 @@ use crate::screens::Screen;
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
-        (construct.in_set(Sim::Spawn), fire_at_leader.in_set(Sim::Targeting)),
+        (
+            construct.in_set(Sim::Spawn),
+            fire_at_leader.in_set(Sim::Targeting),
+        ),
     );
 }
 
@@ -31,6 +29,7 @@ pub struct Tower;
 #[derive(Component, Clone, Copy, Debug)]
 pub struct TowerType(pub TowerKind);
 
+/// World units.
 #[derive(Component)]
 pub struct Range(pub f32);
 
@@ -39,8 +38,7 @@ pub struct Gun {
     pub damage: f32,
     pub kind: DamageKind,
     pub projectile_speed: f32,
-    /// Impact radius. Zero means single target — the mortar is the reason this
-    /// exists, and the reason a swarm wave has an answer that is not "more Flak".
+    /// Impact radius in world units; 0 = single target.
     pub splash: f32,
     pub reload: Timer,
 }
@@ -57,8 +55,6 @@ pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
             kind: stats.damage_kind,
             projectile_speed: stats.projectile_speed,
             splash: stats.splash,
-            // `Repeating` and not `Once`: a battery that reloads forever needs
-            // no state machine, just a timer that keeps wrapping.
             reload: Timer::from_seconds(stats.reload, TimerMode::Repeating),
         },
         Sprite {
@@ -71,14 +67,7 @@ pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
     )
 }
 
-/// Target the boat **furthest along the river**, not the nearest one.
-///
-/// This is a gameplay decision hiding in a `min_by`. "Nearest" makes towers
-/// re-target constantly and lets leakers through while guns chew on fresh
-/// arrivals. "First" (closest to the bunker) is the standard tower-defense
-/// default because it concentrates damage on the boat that is about to cost you
-/// integrity. Bloons exposes this as a per-tower setting; it is a genuinely
-/// interesting knob and a good second-iteration feature.
+/// Targets the enemy in range that is furthest along the river.
 fn fire_at_leader(
     time: Res<Time>,
     mut commands: Commands,
@@ -99,9 +88,7 @@ fn fire_at_leader(
             .max_by_key(|(_, _, progress)| progress.next);
 
         let Some((entity, _, _)) = target else {
-            // Nothing in range. Reset so the next boat entering range is shot
-            // immediately instead of waiting out a phantom reload — small
-            // thing, big difference in how responsive the battery feels.
+            // Reset so the next enemy entering range is shot immediately.
             gun.reload.reset();
             continue;
         };
@@ -117,12 +104,6 @@ fn fire_at_leader(
     }
 }
 
-/// Consumes build intents. Cost, legality and placement rules live here, with
-/// the thing being built — `orders.rs` only knows that a click happened.
-///
-/// Every rejection is a silent `continue`. In a shipped game each one would
-/// play a different "denied" sound, which is where the player actually learns
-/// the rules; the branches are already separated for exactly that reason.
 fn construct(
     mut requests: MessageReader<BuildTower>,
     mut commands: Commands,

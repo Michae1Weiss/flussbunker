@@ -1,8 +1,4 @@
-//! Victory and defeat share one plugin because they share one shape.
-//!
-//! This is the counter-case to "one plugin per file": two screens that differ
-//! by a string do not need two modules. Splitting them would be the Bevy form
-//! of classitis — an interface that costs as much as its implementation.
+//! Victory and defeat screens. One plugin: they differ by a string.
 
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;

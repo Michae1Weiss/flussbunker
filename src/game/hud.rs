@@ -1,19 +1,5 @@
-//! The HUD, rebuilt around one playtest finding: *three rounds were played
-//! without discovering a core mechanic.*
-//!
-//! That is not a player mistake. If a rule is not on screen, it does not exist.
-//! So this file now carries:
-//!
-//! * a **build bar** with every tower's name, hotkey and cost, greyed out when
-//!   unaffordable — "u-boat cost and the limit of two is not clear" was a HUD
-//!   bug, not a design one;
-//! * a **boat panel**: rank, torpedoes as pips, trim state, hull;
-//! * a **per-wave hint** during prep, because a player who has never played a
-//!   tower defense has no conventions to fall back on and should not have to.
-//!
-//! Still deliberately plain. Information clarity outranks styling by a wide
-//! margin, and every minute spent on a panel border is a minute not spent
-//! making the wave curve fair.
+//! Status line, build bar, boat panel, enemy health bars. Reads other features'
+//! state, writes none of it.
 
 use bevy::prelude::*;
 
@@ -48,9 +34,7 @@ struct StatusLine;
 #[derive(Component)]
 struct BoatPanel;
 
-/// Marks one build-bar entry, so the update system knows which tower each text
-/// node is describing. A marker component carrying an index is the ECS answer
-/// to "which widget is this" — no lookup table, no name matching.
+/// Index into `TowerKind::ALL`.
 #[derive(Component)]
 struct BuildSlot(usize);
 
@@ -126,8 +110,6 @@ fn update_status(
     );
 }
 
-/// Greying out unaffordable options is the whole feature. A price the player
-/// cannot see is a rule the player cannot learn.
 fn update_build_bar(
     treasury: Res<Treasury>,
     tool: Res<SelectedTool>,
@@ -169,8 +151,6 @@ fn update_boat_panel(
         return;
     };
 
-    // Torpedoes as pips rather than a number: four filled bars are read at a
-    // glance, "4/6" is read by parsing. Glanceable beats precise on a HUD.
     let pips: String = (0..rank.torpedoes)
         .map(|i| if i < torpedoes.loaded { '|' } else { '.' })
         .collect();

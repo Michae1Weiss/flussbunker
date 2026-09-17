@@ -1,18 +1,5 @@
-//! Two kinds of thing in flight, and the difference is a design decision.
-//!
-//! * **Shells** home. Real ones do not, but a missed shot in a tower defense
-//!   reads as a bug rather than as ballistics, and shore batteries are meant to
-//!   be reliable chip damage.
-//! * **Torpedoes run straight.** They take a heading, not a target, and they
-//!   travel until they hit a hull or lose the water. This is the whole v2
-//!   redesign in one struct field:
-//!     - firing over land is *structurally* impossible, no line-of-sight check;
-//!     - a long straight is a firing lane and a bend is dead water, so the
-//!       river's shape becomes the tactical map;
-//!     - a torpedo down a packed channel can hit several boats.
-//!
-//! A projectile is never a child of the gun that fired it. Hierarchy means
-//! "part of"; a shell outlives the aim that produced it.
+//! Shells (tracked, always hit) and torpedoes (straight run, first hull on the line).
+//! Sole writer of `Shell`, `Torpedo`, `Lifetime`; writes `Damage`.
 
 use bevy::prelude::*;
 
@@ -23,8 +10,7 @@ use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
 const HIT_RADIUS: f32 = 7.0;
-/// Half a tile: a torpedo runs down the middle of the channel, so anything
-/// within half a tile of the axis is in its path.
+/// Half a tile: hulls within this distance of the run line are hit.
 const TORPEDO_BEAM: f32 = 24.0;
 
 pub(super) fn plugin(app: &mut App) {
@@ -37,24 +23,22 @@ pub(super) fn plugin(app: &mut App) {
     );
 }
 
-/// Homing: knows *who* it is for.
 #[derive(Component)]
 pub struct Shell {
     pub target: Entity,
     pub damage: f32,
     pub kind: DamageKind,
     pub speed: f32,
-    /// Radius of area damage on impact. Zero for single-target guns.
+    /// Impact radius in world units; 0 = single target.
     pub splash: f32,
 }
 
-/// Straight-running: knows *where* it is going, and nothing about targets.
 #[derive(Component)]
 pub struct Torpedo {
     pub heading: Vec2,
     pub damage: f32,
     pub speed: f32,
-    /// Metres of fuel left, effectively.
+    /// World units left before the run ends.
     pub run_remaining: f32,
 }
 
@@ -140,8 +124,7 @@ fn fly_shells(
     let step = time.delta_secs();
 
     for (entity, mut transform, shell) in &mut shells {
-        // Target sank mid-flight. Despawning is the honest outcome;
-        // re-targeting would make damage output impossible to reason about.
+        // Target gone mid-flight: despawn, never re-target.
         let Ok(target) = targets.get(shell.target) else {
             commands.entity(entity).despawn();
             continue;
@@ -154,9 +137,6 @@ fn fly_shells(
             let impact = target.translation.truncate();
 
             if shell.splash > 0.0 {
-                // Area damage: everything in the radius, including the boat we
-                // aimed at. One loop, no special-casing the primary target.
-                // Ref: https://subscription.packtpub.com/book/game-development/9781788392365/2/ch02lvl1sec19/consider-using-distance-squared-over-distance
                 for (other, other_transform) in &hittable {
                     if impact.distance_squared(other_transform.translation.truncate())
                         <= shell.splash * shell.splash
@@ -193,13 +173,6 @@ fn fly_shells(
     }
 }
 
-/// Straight run: move, check for a hull, check we are still in water.
-///
-/// The water check is the entire fix for "the u-boat shoots over land", and it
-/// costs one grid lookup per tick. Note that it is done on the *torpedo*, not
-/// as a line-of-sight test at firing time — which means a torpedo fired down a
-/// legal lane still dies at the bend, exactly as a player watching it would
-/// expect.
 fn run_torpedoes(
     time: Res<Time>,
     grid: Res<MapGrid>,
@@ -226,8 +199,6 @@ fn run_torpedoes(
             continue;
         }
 
-        // First hull within the beam. `min_by` on distance so a torpedo passing
-        // two overlapping boats hits the near one.
         let hit = enemies
             .iter()
             .filter(|(_, enemy)| {
@@ -246,8 +217,6 @@ fn run_torpedoes(
                 amount: torpedo.damage,
                 kind: DamageKind::Torpedo,
             });
-            // Torpedo hits get a bigger, whiter splash than shells. The best
-            // moment in the game should look like the best moment in the game.
             commands.spawn(splash_bundle(
                 enemy.translation.truncate(),
                 Color::srgb(0.95, 1.0, 1.0),

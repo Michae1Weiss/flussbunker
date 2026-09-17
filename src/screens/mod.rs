@@ -1,9 +1,4 @@
-//! Screen flow. One state enum, one plugin per screen.
-//!
-//! Small games can absolutely be flat (no states at all) — that is a real,
-//! defensible choice. We take states here for one concrete reason: cleanup.
-//! `DespawnOnExit(Screen::X)` deletes every entity tagged with it on exit, so
-//! restarting a run needs no teardown code and cannot leak entities.
+//! Screen flow: one `Screen` state; `DespawnOnExit` does all cleanup.
 
 use bevy::prelude::*;
 
@@ -24,8 +19,6 @@ pub(super) fn plugin(app: &mut App) {
         .add_plugins((title::plugin, game_over::plugin));
 }
 
-/// Shared full-screen centred column. A tiny `impl Bundle` helper instead of a
-/// widget framework: two screens is not enough repetition to justify one.
 pub fn overlay_root() -> impl Bundle {
     (
         Node {
@@ -37,8 +30,6 @@ pub fn overlay_root() -> impl Bundle {
             row_gap: Val::Px(14.0),
             ..default()
         },
-        // Nothing draws behind the title screen, so a background colour here
-        // doubles as the screen itself.
         BackgroundColor(Color::srgba(0.03, 0.05, 0.07, 0.88)),
     )
 }

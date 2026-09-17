@@ -1,14 +1,5 @@
-//! The static world: which tiles exist, and where the river goes.
-//!
-//! Two resources, deliberately not one:
-//!
-//! * `MapGrid`   — what is at cell (x, y), and grid <-> world maths.
-//! * `RiverPath` — the ordered waypoints from the sea to the bunker.
-//!
-//! Splitting them is information hiding in practice. `enemy.rs` needs the path
-//! and nothing else; if both lived in one `Map` resource, every movement system
-//! would carry a dependency on tile layout it never reads. Small resources with
-//! one job each beat one `GameState` god-object every time.
+//! Static world: `MapGrid` (tiles, grid ↔ world maths) and `RiverPath` (waypoints
+//! from the sea to the bunker). Parsed once at startup; a malformed map panics.
 
 use bevy::prelude::*;
 use std::collections::HashSet;
@@ -17,19 +8,14 @@ use crate::balance::{TILE_SIZE, Z_TILE};
 use crate::screens::Screen;
 
 pub(super) fn plugin(app: &mut App) {
-    // Parsing happens once at startup and panics loudly on a broken map. A
-    // malformed level is a programmer error, not a runtime condition to
-    // recover from — fail at the earliest possible moment, with a message.
     let (grid, river) = parse(MAP).expect("map is malformed");
     app.insert_resource(grid)
         .insert_resource(river)
         .add_systems(OnEnter(Screen::Gameplay), spawn_tiles);
 }
 
-/// `S` sea (enemy spawn) · `~` river · `.` buildable land · `B` the bunker.
-///
-/// An ASCII level is the highest-value-per-line data format there is: you can
-/// see the map while editing it, and a typo is visible rather than subtle.
+/// `S` sea spawn · `~` river · `.` land · `B` bunker.
+/// The river must be one unbranched, 4-connected channel from `S` to `B`.
 const MAP: &str = "\
 S~~~~.......
 ....~.......
@@ -52,7 +38,6 @@ pub enum Tile {
 }
 
 impl Tile {
-    /// Everything a boat or a u-boat can travel through.
     pub fn is_navigable(self) -> bool {
         matches!(self, Tile::River | Tile::Bunker)
     }
@@ -66,6 +51,7 @@ pub struct MapGrid {
 }
 
 impl MapGrid {
+    /// `None` outside the grid.
     pub fn tile(&self, cell: IVec2) -> Option<Tile> {
         if cell.x < 0 || cell.y < 0 || cell.x >= self.width || cell.y >= self.height {
             return None;
@@ -73,16 +59,10 @@ impl MapGrid {
         Some(self.tiles[(cell.y * self.width + cell.x) as usize])
     }
 
-    /// Centre of a cell, in world space.
-    ///
-    /// The *only* place this conversion is written. Every "my sprite is half a
-    /// tile off" bug in a grid game comes from this maths existing in three
-    /// slightly different versions.
+    /// Cell centre in world units. Row 0 is the top of the map, so y is negated.
     pub fn grid_to_world(&self, cell: IVec2) -> Vec2 {
         Vec2::new(
             (cell.x as f32 - (self.width - 1) as f32 * 0.5) * TILE_SIZE,
-            // Screen-space Y grows upward, map rows grow downward. Negate once,
-            // here, and never think about it again.
             -(cell.y as f32 - (self.height - 1) as f32 * 0.5) * TILE_SIZE,
         )
     }
@@ -95,11 +75,7 @@ impl MapGrid {
     }
 }
 
-/// Ordered river cells and their world positions, sea first, bunker last.
-///
-/// Enemies walk it forwards, u-boats walk it backwards. Storing both
-/// representations costs a few hundred bytes and saves a conversion in two hot
-/// loops.
+/// Sea first, bunker last. Enemies walk it forwards, the U-boat backwards.
 #[derive(Resource)]
 pub struct RiverPath {
     pub cells: Vec<IVec2>,
@@ -115,18 +91,14 @@ impl RiverPath {
         self.points[self.points.len() - 1]
     }
 
-    /// Index of the river cell a world position sits on, if any.
+    /// `None` for cells that are not on the river.
     pub fn index_of(&self, cell: IVec2) -> Option<usize> {
         self.cells.iter().position(|c| *c == cell)
     }
 }
 
-/// Parses the ASCII map and walks the river from `S` to `B`.
-///
-/// The walk is a deliberate design constraint: the river must be a single
-/// unbranched 4-connected channel. That makes pathfinding unnecessary — no A*,
-/// no navmesh, no flow field, just a `Vec` of waypoints. When a rule about
-/// your *content* removes an entire subsystem from your *code*, take it.
+/// `Err` for unknown characters, ragged rows, a missing `S` or `B`, or a river
+/// that branches or dead-ends.
 fn parse(source: &str) -> Result<(MapGrid, RiverPath), String> {
     let rows: Vec<&str> = source.lines().collect();
     let height = rows.len() as i32;
@@ -158,13 +130,14 @@ fn parse(source: &str) -> Result<(MapGrid, RiverPath), String> {
         }
     }
 
-    let grid = MapGrid { width, height, tiles };
+    let grid = MapGrid {
+        width,
+        height,
+        tiles,
+    };
     let start = start.ok_or("map has no 'S' spawn")?;
     let bunker = bunker.ok_or("map has no 'B' bunker")?;
 
-    // Walk: from each cell, step to the one navigable neighbour we have not
-    // visited. Exactly one must exist, or the river is branched/ambiguous and
-    // the level is broken.
     let mut cells = vec![start];
     let mut visited = HashSet::new();
     visited.insert(start);
@@ -191,13 +164,13 @@ fn parse(source: &str) -> Result<(MapGrid, RiverPath), String> {
     Ok((grid, RiverPath { cells, points }))
 }
 
-/// One sprite per tile. 144 sprites is nothing; a tilemap crate would be
-/// premature optimisation with a migration cost attached.
 fn spawn_tiles(mut commands: Commands, grid: Res<MapGrid>) {
     for y in 0..grid.height {
         for x in 0..grid.width {
             let cell = IVec2::new(x, y);
-            let Some(tile) = grid.tile(cell) else { continue };
+            let Some(tile) = grid.tile(cell) else {
+                continue;
+            };
             let color = match tile {
                 Tile::Land => Color::srgb(0.16, 0.20, 0.15),
                 Tile::River => Color::srgb(0.10, 0.24, 0.34),
@@ -208,7 +181,6 @@ fn spawn_tiles(mut commands: Commands, grid: Res<MapGrid>) {
                 DespawnOnExit(Screen::Gameplay),
                 Sprite {
                     color,
-                    // 1px gap so the grid reads as a grid.
                     custom_size: Some(Vec2::splat(TILE_SIZE - 1.0)),
                     ..default()
                 },
@@ -230,8 +202,6 @@ mod tests {
         assert_eq!(grid.tile(*river.cells.last().unwrap()), Some(Tile::Bunker));
     }
 
-    /// Every step must be exactly one cell. If this fails, the walk jumped a
-    /// gap — and boats would visibly teleport across land.
     #[test]
     fn river_is_contiguous() {
         let (_, river) = parse(MAP).unwrap();
@@ -252,8 +222,6 @@ mod tests {
             .filter(|c| grid.tile(*c).is_some_and(Tile::is_navigable))
             .count();
 
-        // A river tile the walk never reached is a disconnected puddle: it
-        // looks like water, boats ignore it, and u-boats can be ordered to it.
         assert_eq!(on_path, navigable);
     }
 
@@ -265,8 +233,6 @@ mod tests {
         assert_eq!(grid.world_to_grid(grid.grid_to_world(cell)), cell);
     }
 
-    /// A level author's typo should fail at startup with a message, not
-    /// produce boats that pick a fork at random.
     #[test]
     fn a_branching_river_is_rejected() {
         let branched = "S~~.\n.~~.\n..~B";

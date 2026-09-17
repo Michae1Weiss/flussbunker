@@ -20,7 +20,7 @@ only in-game as unit and flavour names (8.8 cm, Reichsmark, wave names).
 ## Tracking
 
 Design rules live in `docs/design/`. Bugs, tasks and ideas live in GitHub Issues with labels
-`bug`, `idea`, `chore`, `design`; a project board with columns Backlog / Next / Doing / Done;
+`bug`, `idea`, `chore`, `design`; a project board (GitHub's default Todo / In Progress / Done columns);
 milestones mirror `docs/ROADMAP.md`. A rule change gets a line in `docs/DECISIONS.md`.
 
 ## Code

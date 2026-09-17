@@ -41,7 +41,7 @@ fn spawn_title(mut commands: Commands) {
                 [0.66, 0.70, 0.74]
             ),
             line(
-                "Enter  naechste Welle starten (kein Auto-Start)",
+                "Enter  naechste Welle starten (kein Auto-Start)     F  doppeltes Tempo",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),

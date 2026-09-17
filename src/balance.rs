@@ -20,6 +20,10 @@ pub const Z_UI: f32 = 50.0;
 pub const STARTING_MARKS: u32 = 0;
 /// RM paid at the end of every wave, kills or not.
 pub const WAVE_CLEAR_BONUS: u32 = 30;
+/// Bounty of the prologue's gold transport: two flak, or one flak plus savings.
+pub const PROLOGUE_BOUNTY: u32 = 150;
+/// The gold transport cruises between these fractions of the river.
+pub const PROLOGUE_CRUISE: (f32, f32) = (0.2, 0.75);
 pub const STARTING_INTEGRITY: u32 = 20;
 
 /// Three roles, `TOWER_TIERS` tiers each; `stats(tier)` describes one tier.
@@ -119,6 +123,8 @@ pub enum EnemyKind {
     Destroyer,
     /// Belt armour above any shell's damage: torpedoes only.
     Monitor,
+    /// Prologue target: cruises the river, never breaches, cannot shoot back.
+    GoldTransport,
 }
 
 /// Drives ramming, death style and debris; see docs/design/enemies.md.
@@ -245,6 +251,18 @@ impl EnemyKind {
                     ranging: 3.0,
                     reload: 1.5,
                 }),
+            },
+            EnemyKind::GoldTransport => EnemyStats {
+                name: "Goldtransport",
+                class: SizeClass::Medium,
+                health: 200.0,
+                armor: 0.0,
+                speed: 0.7 * TILE_SIZE,
+                bounty: PROLOGUE_BOUNTY,
+                breach_damage: 0,
+                size: 28.0,
+                rgb: [0.90, 0.75, 0.30],
+                shelling: None,
             },
             EnemyKind::Monitor => EnemyStats {
                 name: "Monitor",
@@ -379,228 +397,232 @@ pub struct Group {
 
 pub struct Wave {
     pub name: &'static str,
-    /// Shown in the HUD during the prep phase.
-    pub hint: &'static str,
     pub groups: &'static [Group],
 }
 
+/// Twelve waves from docs/balance: fast groups first so slow ships form the tail of the convoy.
 pub const WAVES: &[Wave] = &[
     Wave {
         name: "Aufklaerung",
-        hint: "Linksklick auf Land baut. 1/2/3 waehlt das Geschuetz.",
         groups: &[Group {
             kind: EnemyKind::MotorTorpedoBoat,
             count: 6,
-            spacing: 1.1,
+            spacing: 0.5,
             lead_in: 0.0,
         }],
     },
     Wave {
         name: "Schnellbootrudel",
-        hint: "Linksklick auf den Fluss schickt U-96 dorthin. Torpedos laufen geradeaus.",
         groups: &[Group {
             kind: EnemyKind::MotorTorpedoBoat,
             count: 12,
-            spacing: 0.55,
+            spacing: 0.5,
             lead_in: 0.0,
         }],
     },
     Wave {
         name: "Geleitzug",
-        hint: "Stell U-96 auf eine lange Gerade. Kurven sind totes Wasser.",
         groups: &[
-            Group {
-                kind: EnemyKind::Corvette,
-                count: 4,
-                spacing: 1.8,
-                lead_in: 0.0,
-            },
             Group {
                 kind: EnemyKind::MotorTorpedoBoat,
                 count: 8,
                 spacing: 0.5,
-                lead_in: 6.0,
-            },
-        ],
-    },
-    Wave {
-        name: "Zerstoerer voraus",
-        hint: "Zerstoerer sind gepanzert - Granaten prallen ab. Und sie jagen U-Boote.",
-        groups: &[
-            Group {
-                kind: EnemyKind::Destroyer,
-                count: 1,
-                spacing: 0.0,
-                lead_in: 0.0,
-            },
-            Group {
-                kind: EnemyKind::Corvette,
-                count: 5,
-                spacing: 1.4,
-                lead_in: 5.0,
-            },
-        ],
-    },
-    Wave {
-        name: "Wasserbomben",
-        hint:
-            "Roter Sonarstrahl = du wirst geortet. T taucht. Getaucht bist du sicher, aber blind.",
-        groups: &[
-            Group {
-                kind: EnemyKind::Destroyer,
-                count: 2,
-                spacing: 5.0,
-                lead_in: 0.0,
-            },
-            Group {
-                kind: EnemyKind::MotorTorpedoBoat,
-                count: 10,
-                spacing: 0.5,
-                lead_in: 4.0,
-            },
-        ],
-    },
-    Wave {
-        name: "Landungsversuch",
-        hint: "Landungsboote sind langsam - aber ein Durchbruch kostet 5 Bunker.",
-        groups: &[
-            Group {
-                kind: EnemyKind::LandingCraft,
-                count: 3,
-                spacing: 3.0,
                 lead_in: 0.0,
             },
             Group {
                 kind: EnemyKind::Corvette,
                 count: 4,
                 spacing: 1.6,
-                lead_in: 6.0,
+                lead_in: 4.1,
+            },
+        ],
+    },
+    Wave {
+        name: "Zerstoerer voraus",
+        groups: &[
+            Group {
+                kind: EnemyKind::MotorTorpedoBoat,
+                count: 4,
+                spacing: 0.5,
+                lead_in: 0.0,
+            },
+            Group {
+                kind: EnemyKind::Corvette,
+                count: 3,
+                spacing: 1.6,
+                lead_in: 2.9,
+            },
+            Group {
+                kind: EnemyKind::Destroyer,
+                count: 1,
+                spacing: 4.0,
+                lead_in: 6.8,
+            },
+        ],
+    },
+    Wave {
+        name: "Unter Beschuss",
+        groups: &[
+            Group {
+                kind: EnemyKind::MotorTorpedoBoat,
+                count: 10,
+                spacing: 0.5,
+                lead_in: 0.0,
+            },
+            Group {
+                kind: EnemyKind::Destroyer,
+                count: 2,
+                spacing: 4.0,
+                lead_in: 4.7,
+            },
+        ],
+    },
+    Wave {
+        name: "Landung",
+        groups: &[
+            Group {
+                kind: EnemyKind::MotorTorpedoBoat,
+                count: 6,
+                spacing: 0.5,
+                lead_in: 0.0,
+            },
+            Group {
+                kind: EnemyKind::Corvette,
+                count: 4,
+                spacing: 1.6,
+                lead_in: 3.5,
+            },
+            Group {
+                kind: EnemyKind::LandingCraft,
+                count: 3,
+                spacing: 2.5,
+                lead_in: 8.4,
             },
         ],
     },
     Wave {
         name: "Doppelschlag",
-        hint: "Granatwerfer treffen mehrere Boote auf einmal.",
         groups: &[
             Group {
                 kind: EnemyKind::MotorTorpedoBoat,
                 count: 18,
-                spacing: 0.35,
+                spacing: 0.5,
                 lead_in: 0.0,
             },
             Group {
                 kind: EnemyKind::Destroyer,
                 count: 2,
                 spacing: 4.0,
-                lead_in: 8.0,
+                lead_in: 7.1,
             },
         ],
     },
     Wave {
         name: "Sperrbrecher",
-        hint: "Nachladen geht nur am Bunker. Fahr rechtzeitig heim.",
         groups: &[
+            Group {
+                kind: EnemyKind::MotorTorpedoBoat,
+                count: 10,
+                spacing: 0.5,
+                lead_in: 0.0,
+            },
             Group {
                 kind: EnemyKind::LandingCraft,
                 count: 4,
-                spacing: 2.4,
-                lead_in: 0.0,
+                spacing: 2.5,
+                lead_in: 4.7,
             },
             Group {
                 kind: EnemyKind::Destroyer,
                 count: 2,
-                spacing: 6.0,
-                lead_in: 3.0,
-            },
-            Group {
-                kind: EnemyKind::MotorTorpedoBoat,
-                count: 10,
-                spacing: 0.45,
-                lead_in: 12.0,
+                spacing: 4.0,
+                lead_in: 11.2,
             },
         ],
     },
     Wave {
         name: "Jagdgruppe",
-        hint: "Drei Zerstoerer. Getaucht anfahren, auftauchen, schiessen, wieder tauchen.",
         groups: &[
-            Group {
-                kind: EnemyKind::Destroyer,
-                count: 3,
-                spacing: 3.5,
-                lead_in: 0.0,
-            },
             Group {
                 kind: EnemyKind::Corvette,
                 count: 6,
-                spacing: 1.2,
-                lead_in: 6.0,
+                spacing: 1.6,
+                lead_in: 0.0,
+            },
+            Group {
+                kind: EnemyKind::Destroyer,
+                count: 3,
+                spacing: 4.0,
+                lead_in: 6.8,
             },
         ],
     },
     Wave {
         name: "Grossangriff",
-        hint: "Nichts Neues - nur alles gleichzeitig.",
         groups: &[
             Group {
                 kind: EnemyKind::MotorTorpedoBoat,
                 count: 20,
-                spacing: 0.3,
+                spacing: 0.5,
                 lead_in: 0.0,
             },
             Group {
                 kind: EnemyKind::Corvette,
                 count: 8,
-                spacing: 1.0,
-                lead_in: 5.0,
+                spacing: 1.6,
+                lead_in: 7.7,
             },
             Group {
                 kind: EnemyKind::LandingCraft,
                 count: 4,
-                spacing: 2.0,
-                lead_in: 14.0,
+                spacing: 2.5,
+                lead_in: 16.4,
             },
         ],
     },
     Wave {
-        name: "Vorhut der Flotte",
-        hint: "Der Monitor kommt. 12 Panzerung - Geschuetze koennen ihn nicht toeten.",
+        name: "Vorhut",
         groups: &[
             Group {
-                kind: EnemyKind::Destroyer,
-                count: 4,
-                spacing: 3.0,
-                lead_in: 0.0,
-            },
-            Group {
-                kind: EnemyKind::LandingCraft,
-                count: 5,
-                spacing: 2.0,
-                lead_in: 8.0,
-            },
-        ],
-    },
-    Wave {
-        name: "HMS Erebus",
-        hint: "Nur Torpedos. Halte die Gerade frei und lade zwischendurch nach.",
-        groups: &[
-            Group {
-                kind: EnemyKind::Monitor,
-                count: 2,
-                spacing: 12.0,
+                kind: EnemyKind::MotorTorpedoBoat,
+                count: 8,
+                spacing: 0.5,
                 lead_in: 0.0,
             },
             Group {
                 kind: EnemyKind::Destroyer,
                 count: 4,
                 spacing: 4.0,
-                lead_in: 4.0,
+                lead_in: 4.1,
             },
+            Group {
+                kind: EnemyKind::LandingCraft,
+                count: 5,
+                spacing: 2.5,
+                lead_in: 13.3,
+            },
+        ],
+    },
+    Wave {
+        name: "Der Monitor",
+        groups: &[
             Group {
                 kind: EnemyKind::MotorTorpedoBoat,
                 count: 16,
-                spacing: 0.35,
-                lead_in: 18.0,
+                spacing: 0.5,
+                lead_in: 0.0,
+            },
+            Group {
+                kind: EnemyKind::Destroyer,
+                count: 4,
+                spacing: 4.0,
+                lead_in: 6.5,
+            },
+            Group {
+                kind: EnemyKind::Monitor,
+                count: 2,
+                spacing: 12.0,
+                lead_in: 15.7,
             },
         ],
     },

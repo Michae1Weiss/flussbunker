@@ -10,6 +10,7 @@ use crate::game::map::{BuildSpot, RiverPath};
 use crate::game::radial::{Action, CloseMenu, Menu, OpenMenu, Target};
 use crate::game::tower::Occupied;
 use crate::game::uboat::{Station, UBoat};
+use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
 
 pub fn plugin(app: &mut App) {
@@ -22,6 +23,7 @@ pub fn plugin(app: &mut App) {
         .add_message::<ToggleTrim>()
         .add_message::<FireTorpedo>()
         .add_message::<UpgradeBoat>()
+        .add_message::<ToggleSpeed>()
         .add_systems(Update, read_intents.in_set(Frame::Input))
         .add_systems(Update, draw_hover.in_set(Frame::Present));
 }
@@ -71,6 +73,10 @@ pub struct FireTorpedo;
 #[derive(Message)]
 pub struct UpgradeBoat;
 
+/// 1x / 2x game pace.
+#[derive(Message)]
+pub struct ToggleSpeed;
+
 #[derive(SystemParam)]
 struct Intents<'w> {
     build: MessageWriter<'w, BuildTower>,
@@ -83,6 +89,7 @@ struct Intents<'w> {
     trim: MessageWriter<'w, ToggleTrim>,
     fire: MessageWriter<'w, FireTorpedo>,
     upgrade_boat: MessageWriter<'w, UpgradeBoat>,
+    speed: MessageWriter<'w, ToggleSpeed>,
 }
 
 fn read_intents(
@@ -91,6 +98,7 @@ fn read_intents(
     buttons: Res<ButtonInput<MouseButton>>,
     path: Res<RiverPath>,
     menu: Res<Menu>,
+    wave: Res<WaveState>,
     mut hold: ResMut<SellHold>,
     spots: Query<(Entity, &Transform, Option<&Occupied>), With<BuildSpot>>,
     boats: Query<(Entity, &Transform, &Station), With<UBoat>>,
@@ -106,6 +114,9 @@ fn read_intents(
     }
     if keys.just_pressed(KeyCode::Escape) {
         intents.close_menu.write(CloseMenu);
+    }
+    if keys.just_pressed(KeyCode::KeyF) {
+        intents.speed.write(ToggleSpeed);
     }
 
     let cursor = cursor_world(&camera, *window);
@@ -173,7 +184,9 @@ fn read_intents(
             target: Target::Boat(boat),
             anchor: transform.translation.truncate(),
         });
-    } else if let Some((spot, transform, occupied)) = spot_at(world, spots.iter()) {
+    } else if let Some((spot, transform, occupied)) =
+        spot_at(world, spots.iter()).filter(|_| !wave.prologue)
+    {
         let target = match occupied {
             Some(occupied) => Target::Turret {
                 spot,

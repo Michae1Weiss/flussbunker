@@ -1,10 +1,10 @@
 //! Enemy boats: movement along the river in convoy, breaching, destroyer gunfire.
-//! Sole writer of `Along`, `Shelling`; writes `EnemyReachedBunker` and `Damage`.
+//! Sole writer of `Along`, `Cruising`, `Shelling`; writes `EnemyReachedBunker` and `Damage`.
 //! Rules: docs/design/enemies.md
 
 use bevy::prelude::*;
 
-use crate::balance::{EnemyKind, CONVOY_GAP, ENEMY_TURN_RATE, TILE_SIZE, Z_ENEMY};
+use crate::balance::{EnemyKind, CONVOY_GAP, ENEMY_TURN_RATE, PROLOGUE_CRUISE, TILE_SIZE, Z_ENEMY};
 use crate::game::combat::{Armor, Health, Weapon};
 use crate::game::map::RiverPath;
 use crate::game::projectile::{shell_bundle, splash_bundle};
@@ -16,7 +16,7 @@ pub fn plugin(app: &mut App) {
     app.add_message::<EnemyReachedBunker>().add_systems(
         FixedUpdate,
         (
-            advance_in_convoy.in_set(Sim::Movement),
+            (advance_in_convoy, cruise).in_set(Sim::Movement),
             shell_the_boat.in_set(Sim::Targeting),
         ),
     );
@@ -56,6 +56,24 @@ pub struct Shelling {
     /// Near misses until finished; reset whenever contact is lost.
     pub ranging: Timer,
     pub reload: Timer,
+}
+
+/// Sails up and down between two arc lengths instead of toward the bunker.
+#[derive(Component)]
+pub struct Cruising {
+    pub low: f32,
+    pub high: f32,
+    pub downstream: bool,
+}
+
+impl Cruising {
+    pub fn prologue(path: &RiverPath) -> Self {
+        Self {
+            low: path.length() * PROLOGUE_CRUISE.0,
+            high: path.length() * PROLOGUE_CRUISE.1,
+            downstream: true,
+        }
+    }
 }
 
 #[derive(Message)]
@@ -110,7 +128,7 @@ fn advance_in_convoy(
             &mut Along,
             &BreachDamage,
         ),
-        With<Enemy>,
+        (With<Enemy>, Without<Cruising>),
     >,
 ) {
     let step = time.delta_secs();
@@ -145,6 +163,30 @@ fn advance_in_convoy(
         // Sprites are drawn bow-up, hence the -90°.
         let bow = (transform.rotation * Vec3::Y).truncate();
         let heading = bow.rotate_towards(path.tangent_at(along.0), ENEMY_TURN_RATE * step);
+        transform.rotation =
+            Quat::from_rotation_z(heading.to_angle() - std::f32::consts::FRAC_PI_2);
+    }
+}
+
+fn cruise(
+    time: Res<Time>,
+    path: Res<RiverPath>,
+    mut ships: Query<(&mut Transform, &Speed, &mut Along, &mut Cruising), With<Enemy>>,
+) {
+    let step = time.delta_secs();
+    for (mut transform, speed, mut along, mut cruising) in &mut ships {
+        let direction = if cruising.downstream { 1.0 } else { -1.0 };
+        along.0 += speed.0 * step * direction;
+        if along.0 >= cruising.high {
+            cruising.downstream = false;
+        } else if along.0 <= cruising.low {
+            cruising.downstream = true;
+        }
+        let z = transform.translation.z;
+        transform.translation = path.point_at(along.0).extend(z);
+        let bow = (transform.rotation * Vec3::Y).truncate();
+        let heading =
+            bow.rotate_towards(path.tangent_at(along.0) * direction, ENEMY_TURN_RATE * step);
         transform.rotation =
             Quat::from_rotation_z(heading.to_angle() - std::f32::consts::FRAC_PI_2);
     }

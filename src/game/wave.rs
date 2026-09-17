@@ -1,13 +1,14 @@
-//! Wave pacing: spawns groups on their schedule, ends a wave when the river is
-//! empty, declares victory after the last one. Sole writer of `WaveState`; writes
-//! `WaveFinished`.
+//! Run pacing: the prologue, then twelve waves spawned on their schedule, each ending
+//! when the river is empty; victory after the last. Also the 1x/2x pace. Sole writer of
+//! `WaveState` and of the virtual time speed; writes `WaveFinished`.
 
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
 use crate::balance::{EnemyKind, WAVES, WAVE_CLEAR_BONUS};
 use crate::game::economy::Treasury;
-use crate::game::enemy::{enemy_bundle, shelling_bundle, Enemy};
+use crate::game::enemy::{enemy_bundle, shelling_bundle, Cruising, Enemy};
+use crate::game::input::ToggleSpeed;
 use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -15,15 +16,22 @@ use crate::screens::Screen;
 pub fn plugin(app: &mut App) {
     app.init_resource::<WaveState>()
         .add_message::<WaveFinished>()
-        .add_systems(OnEnter(Screen::Gameplay), reset)
+        .add_systems(OnEnter(Screen::Gameplay), (reset, spawn_prologue).chain())
+        .add_systems(OnExit(Screen::Gameplay), normal_pace)
         .add_systems(
             Update,
-            start_wave
-                .run_if(in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Enter))),
+            (
+                start_wave.run_if(
+                    in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Enter)),
+                ),
+                toggle_pace.run_if(in_state(Screen::Gameplay)),
+            ),
         )
         .add_systems(
             FixedUpdate,
-            (spawn_boats, finish_wave).chain().in_set(Sim::Spawn),
+            (spawn_boats, finish_wave, finish_prologue)
+                .chain()
+                .in_set(Sim::Spawn),
         );
 }
 
@@ -33,8 +41,11 @@ pub struct WaveFinished;
 
 #[derive(Resource, Debug)]
 pub struct WaveState {
+    /// Next wave to start, or the one running.
     pub index: usize,
     pub running: bool,
+    /// The gold transport is still afloat; no waves and no building yet.
+    pub prologue: bool,
     /// Seconds since the wave started.
     elapsed: f32,
     /// Per group, boats already spawned.
@@ -46,6 +57,7 @@ impl Default for WaveState {
         Self {
             index: 0,
             running: false,
+            prologue: true,
             elapsed: 0.0,
             spawned: Vec::new(),
         }
@@ -54,8 +66,11 @@ impl Default for WaveState {
 
 impl WaveState {
     pub fn label(&self) -> String {
+        if self.prologue {
+            return "Prolog: Goldtransport".to_string();
+        }
         if self.index >= WAVES.len() {
-            return "—".to_string();
+            return "-".to_string();
         }
         format!(
             "{}/{} {}",
@@ -64,19 +79,57 @@ impl WaveState {
             WAVES[self.index].name
         )
     }
+
+    /// Composition of the next wave, e.g. "8 MTB, 4 Korvette".
+    pub fn preview(&self) -> String {
+        if self.prologue || self.running || self.index >= WAVES.len() {
+            return String::new();
+        }
+        WAVES[self.index]
+            .groups
+            .iter()
+            .map(|g| format!("{} {}", g.count, g.kind.stats().name))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
-fn reset(mut wave: ResMut<WaveState>) {
+fn reset(mut wave: ResMut<WaveState>, mut time: ResMut<Time<Virtual>>) {
     *wave = WaveState::default();
+    time.set_relative_speed(1.0);
 }
 
-fn start_wave(mut wave: ResMut<WaveState>) {
-    if wave.running || wave.index >= WAVES.len() {
+fn normal_pace(mut time: ResMut<Time<Virtual>>) {
+    time.set_relative_speed(1.0);
+}
+
+fn spawn_prologue(mut commands: Commands, path: Res<RiverPath>) {
+    commands.spawn((
+        enemy_bundle(EnemyKind::GoldTransport, path.spawn_point()),
+        Cruising::prologue(&path),
+    ));
+}
+
+/// The pace toggles between 1x and 2x and always returns to 1x when a wave starts.
+fn toggle_pace(mut intents: MessageReader<ToggleSpeed>, mut time: ResMut<Time<Virtual>>) {
+    for _ in intents.read() {
+        let next = if time.relative_speed() > 1.0 {
+            1.0
+        } else {
+            2.0
+        };
+        time.set_relative_speed(next);
+    }
+}
+
+fn start_wave(mut wave: ResMut<WaveState>, mut time: ResMut<Time<Virtual>>) {
+    if wave.prologue || wave.running || wave.index >= WAVES.len() {
         return;
     }
     wave.running = true;
     wave.elapsed = 0.0;
     wave.spawned = vec![0; WAVES[wave.index].groups.len()];
+    time.set_relative_speed(1.0);
 }
 
 fn spawn_boats(
@@ -134,5 +187,16 @@ fn finish_wave(
     finished.write(WaveFinished);
     if wave.index >= WAVES.len() {
         next.set(Screen::Victory);
+    }
+}
+
+fn finish_prologue(
+    mut wave: ResMut<WaveState>,
+    mut finished: MessageWriter<WaveFinished>,
+    transports: Query<(), With<Cruising>>,
+) {
+    if wave.prologue && transports.is_empty() {
+        wave.prologue = false;
+        finished.write(WaveFinished);
     }
 }

@@ -3,7 +3,6 @@
 
 use bevy::prelude::*;
 
-use crate::balance::WAVES;
 use crate::game::bunker::Integrity;
 use crate::game::combat::Health;
 use crate::game::economy::Treasury;
@@ -59,25 +58,28 @@ fn update_status(
     treasury: Res<Treasury>,
     integrity: Res<Integrity>,
     wave: Res<WaveState>,
+    time: Res<Time<Virtual>>,
 ) {
-    let phase = if wave.running {
+    let phase = if wave.prologue {
+        "   Versenke den Goldtransport: Linksklick faehrt, Space feuert".to_string()
+    } else if wave.running {
         String::new()
-    } else if wave.index < WAVES.len() {
-        format!(
-            "   [ENTER] Welle {} starten: {}",
-            wave.index + 1,
-            WAVES[wave.index].hint
-        )
     } else {
-        String::new()
+        format!("   [ENTER] naechste Welle: {}", wave.preview())
+    };
+    let pace = if time.relative_speed() > 1.0 {
+        "   2x [F]"
+    } else {
+        ""
     };
 
     status.0 = format!(
-        "RM {}    Bunker {}    Welle {}{}",
+        "RM {}    Bunker {}    Welle {}{}{}",
         treasury.marks,
         integrity.0,
         wave.label(),
         phase,
+        pace,
     );
 }
 

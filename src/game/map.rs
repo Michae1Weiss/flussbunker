@@ -8,6 +8,7 @@ use crate::balance::{
     BUILD_SPOT_RADIUS, MAP_HEIGHT_TILES, MAP_WIDTH_TILES, RIVER_HALF_WIDTH, TILE_SIZE, Z_TILE,
     Z_TOWER,
 };
+use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
 use crate::screens::Screen;
 
@@ -201,7 +202,14 @@ fn spawn_build_spots(mut commands: Commands) {
     }
 }
 
-fn draw_build_spots(mut gizmos: Gizmos, spots: Query<&Transform, With<BuildSpot>>) {
+fn draw_build_spots(
+    mut gizmos: Gizmos,
+    wave: Res<WaveState>,
+    spots: Query<&Transform, With<BuildSpot>>,
+) {
+    if wave.prologue {
+        return;
+    }
     for transform in &spots {
         gizmos.circle_2d(
             Isometry2d::from_translation(transform.translation.truncate()),

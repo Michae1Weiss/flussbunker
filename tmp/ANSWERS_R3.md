@@ -48,17 +48,17 @@ Vorschlag der vollständigen Liste. Alles im Code heißt nach der Absicht, nicht
 Overlay-Inhalte, Vorschlag: Reichweiten aller Geschütze, Ladebalken, Zielmodus, exakte HP, Boots-HP und Torpedos, Torpedo-Kanal des Bootes, Feindroute, Beschussreichweite der Zerstörer.
 
 - **P1: Feindroute in der Vorbereitungsphase.** Neue Spieler müssen sehen, wo die Schiffe fahren, bevor sie bauen. Vorschlag: In der Vorbereitungsphase ist die Route **immer** als leichte Bleistift-Strichlinie sichtbar, im Kampf nur im Overlay. Okay?
-  - Antwort: 
+  - Antwort: Okay
 - **P2: Torpedo-Kanal des Bootes.** Auch ohne Overlay sichtbar, wenn man über das Boot hovert oder es gerade befehligt? Ich sage ja, denn "wo endet meine Gerade" ist die wichtigste Information des Spiels und darf nicht hinter Tab stecken.
-  - Antwort: 
+  - Antwort: einverstanden
 - **P3: Wellenvorschau.** Wie genau?
   - a) exakte Zusammensetzung als Symbole mit Zahlen (6× Schnellboot, 1× Zerstörer)
   - b) vage ("Zerstörer gesichtet")
 
   Empfehlung: a, als Funkspruch auf dem Papierzettel. Ein TD ohne genaue Vorschau bestraft Planung, und Planung ist das Spiel in der Vorbereitungsphase.
-  - Antwort: 
+  - Antwort: Option a finde ich gut, einverstanden
 - **P4: Hinweistext pro Welle** (der PoC hat "hint" pro Welle). Behalten als Teil des Onboardings, im Modus ohne Onboarding weg?
-  - Antwort: 
+  - Antwort: der aktuelle PoC finde ich zu "gesprächig", zu viel Text wie "hint" pro Welle, das liest doch keiner. Würde ich ehrlich gesagt sein lassen es sei denn du sagst das war eine gute Sache.
 
 ### Q. Wirtschaft: das Gerüst, keine Zahlen
 
@@ -70,17 +70,17 @@ Die Zahlen kommen in Runde 3 mit einem Rechenmodell. Hier nur die *Regeln*, aus 
   - c) Genug für zwei Flak.
 
   Empfehlung b, mit einem Sicherheitsnetz gegen die Todesspirale: Die Deckkanone allein tötet Welle 1 auch dann, wenn alle Torpedos ins Ufer gehen. Der Spieler kann Welle 1 nicht verlieren, nur langsam gewinnen. Welche Variante?
-  - Antwort: 
+  - Antwort: b ist gut. Ich habe mir auch überlegt wie man die erste Runde entspannter machen kann und auch bisschen Geschichte und bisschen Vielfalt reinbringen kann: erster Gegner ist eine langsame reiche Yacht die gar nicht aggresiv ist und gar nicht in den Bunker fährt sondern einfach Fluss ab Fluss auf kursiert. Idee ist, dass man als erstes mit einem kleinen billigen Uboot startet gar ohne Kanone und mit zwei Torpedos und billigem Bunker (das mit Bunker weiß ich nicht, ich will nicht eine Mechanik einführen, Bunker upzugraden oder doch?). Einer ist gezwungen, das Boot mit einem Torpedo abzuschießen. Es sind erstmal gar keine festen Geschützstellungen zu sehen. Wenn die gegnerische Yacht untergeht kommt ein riesen Chi-Ching Sound da diese Yacht gold hatte und sehr reich wurde, gehörte einem Statt. User bekommt Unmengen an Geld - 10000 RM, und MUSS all das geld in der Pause für neuen Bunker, Stellungen und neues Uboot verbrauchen. Es bleiben nur knapp genug für eine Marinenflak.
 - **Q2: Belohnungszeitpunkt.** RM sofort beim Kill (Säule 2, sofortiges Feedback), keine Sammelaktion. Okay?
-  - Antwort: 
+  - Antwort: okay
 - **Q3: Wellenabschluss-Bonus.** Ein kleiner fester Betrag am Ende jeder Welle, unabhängig von Kills. Grund: Anti-Todesspirale. Wer eine Welle schlecht spielt, hat trotzdem Einkommen für eine Korrektur. Ja oder nein?
-  - Antwort: 
+  - Antwort: Ja
 - **Q4: Die Zielgröße der Wirtschaft.** Das ist die eine Zahl, die alles bestimmt: **Wie viel Prozent von "alles gebaut und alles maximal" soll ein perfekter Durchlauf bezahlen können?** Im PoC war es über 100 %, deshalb war es zu leicht und Geld blieb liegen. Genre-Erfahrung: 50 bis 70 %. Damit muss man in jeder Runde entscheiden, was man *nicht* kauft. Mein Vorschlag: 60 %. Was sagt dein Bauchgefühl?
-  - Antwort: 
+  - Antwort: 60%, später können wir es mit 50% ausprobieren für mehr Spannung
 - **Q5: Preisverhältnis Boot zu Geschützen.** Wenn ein "nur Boot"-Durchlauf möglich sein soll, muss das voll ausgebaute Boot ungefähr so viel kosten wie 3 bis 4 ausgebaute Geschütze. Ist das die Intention: Boot-Ausbau ≈ halbes Verteidigungsbudget?
-  - Antwort: 
+  - Antwort: gerne Boot-Ausbau ≈ halbes Verteidigungsbudget
 - **Q6: Verkaufen und Umbauen als Strategie.** Mit 60 % Rückerstattung kann man vor einer Zerstörerwelle Flak verkaufen und 15 cm bauen. Das ist gewollt (das Spiel belohnt Lesen der Vorschau)? Ich sage ja.
-  - Antwort: 
+  - Antwort: ich sage auch ja
 
 ### R. Onboarding-Skript, Wellen 1 bis 4
 
@@ -93,16 +93,16 @@ Prinzip: **kein Modal, kein Tutorial-Bildschirm.** Jeder Hinweis ist eine einzei
 | 3 | Konvoi, Upgrade, Vorschau | Am Zettel: "Funkspruch: nächste Welle". Am Geschütz: "Klick: ausbauen" | ein Upgrade gekauft |
 | 4 | Tauchen | Zerstörer erscheint, Notiz am Boot: "Zerstörer feuert. Rechtsklick: tauchen" | erster Tauchgang unter Beschuss |
 
-  - Antwort: 
+  - Antwort: 1 ist top. 2 würde ich so machen dass alle Stellungen markiert werden damit User das Gefühl von Anfang an hat, dass ER entscheidet und er nicht ein Teil eines Lame-Tutorials ist, wo alles für Ihn vordefiniert und entschieden wird! Punkt 3 finde ich OK, Upgrade-Pfeiler neben dem Geschütz soll selbsterklärend sein, hauptsacher er nervt nicht falls User nicht upgraden will und Geld für das Uboot Upgrade sparen will, muss klever designt werden. Zum Punkt 4 - Das mit Tauchen-Tutorial werde ich ungefähr so implementieren ... Destroyer kommt, der bleibt am Ende erster Gerade stehen und der User der nicht tauchen kann hat keine Wahl, als zu tauchen, an Destroyer vorbeizufahren, und ihn von hinten zu zerstören, was denkst du? Oder ist das ein Smell und Spaßbremse? Bitte erhlich sein.
 - **R1:** Passt die Reihenfolge? Rammen und Zielmodi werden **nicht** gelehrt, die sind Entdeckung (Säule "Discovery" aus A4). Einverstanden, dass Rammen unerklärt bleibt und nur im Overlay als Hinweis existiert?
-  - Antwort: 
+  - Antwort: einverstanden, super Idee!
 - **R2:** Der Wellen-Hinweis aus dem PoC ("Kurven sind totes Wasser") ist Wissen, das man nicht selbst herausfindet. Soll das eine Onboarding-Notiz in Welle 2 sein (Torpedo läuft ins Ufer → "Torpedos laufen geradeaus. Kurven sind totes Wasser")? Das wäre eine **reaktive** Notiz: erscheint erst, wenn der Fehler passiert ist. Reaktive Hinweise sind die beste Form von Tutorial, weil sie nie zu früh kommen.
-  - Antwort: 
+  - Antwort: Reaktive Hinweise sind top
 
 ### S. Playtest-Protokoll und Telemetrie
 
 - **S1: Telemetrie im Greybox.** Ein lokales CSV pro Durchlauf, kein Upload: Welle erreicht, RM am Ende, RM ungenutzt, Geschütze pro Typ, Torpedos gefeuert und getroffen, Torpedos ins Ufer, Boot versenkt (wie oft, durch was), Zeit bis zum ersten Torpedo, Overlay an oder aus, Sitzungslänge. Okay? Das macht dein Video-Protokoll auswertbar, ohne 5 Stunden Video zu schauen.
-  - Antwort: 
+  - Antwort: ja bitte, Telemetrie finde ich super für Grayboxing!
 - **S2: Erfolgskriterien für den ersten Playtest** mit den 5 Freunden. Vorschlag:
   - 5 von 5 feuern in Welle 1 einen Torpedo ohne Hilfe
   - 4 von 5 bauen in Welle 2 ein Geschütz ohne Hilfe
@@ -111,6 +111,6 @@ Prinzip: **kein Modal, kein Tutorial-Bildschirm.** Jeder Hinweis ist eine einzei
   - niemand erreicht Welle 12 beim ersten Versuch (sonst zu leicht)
 
   Sind das die richtigen Schwellen?
-  - Antwort: 
+  - Antwort: das sind die richtigen Schwellen! Meine Erwartung ist auch: wenn die erst das Spiel starten und Steuerung kennenlernen werden die wahrscheinlich links- und rechtsklick ausprobieren und da kann man direkt visuell und mit einem sound sehen dass mit rechtsklick boot untertaucht. In der Destroyer-Welle soll dann auch ohne Hinweis verstanden werden, dass man tauchen soll. Dieses AHA-Effekt, dass man auf die Idee selber gekommen ist soll sich belohnend anfüllen. Es ist immer geil, einen Genger wie einer Ratte zu killen ohne bestraft zu werden.
 - **S3: Fragen nach der Sitzung**, offene Form: "Was wolltest du an Stelle X tun?", "Was hat das Boot gemacht, als du getaucht bist?", "Wofür hast du dein Geld ausgegeben und warum?". Keine "War es lustig?"-Fragen. Okay?
-  - Antwort: 
+  - Antwort: Okay

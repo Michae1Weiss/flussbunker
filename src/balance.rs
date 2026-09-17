@@ -7,6 +7,8 @@ pub const TILE_SIZE: f32 = 48.0;
 pub const MAP_WIDTH_TILES: f32 = 32.0;
 pub const MAP_HEIGHT_TILES: f32 = 18.0;
 pub const RIVER_HALF_WIDTH: f32 = 0.9 * TILE_SIZE;
+/// Click and draw radius of a build spot.
+pub const BUILD_SPOT_RADIUS: f32 = 0.5 * TILE_SIZE;
 
 pub const Z_TILE: f32 = 0.0;
 pub const Z_TOWER: f32 = 10.0;

@@ -1,5 +1,5 @@
-//! Shore batteries: construction from `BuildTower`, target selection, firing.
-//! Sole writer of `Tower`, `TowerType`, `Range`, `Gun`.
+//! Shore batteries: construction from `BuildTower` on build spots, target selection, firing.
+//! Sole writer of `Tower`, `TowerType`, `Range`, `Gun`, `Occupied`.
 
 use bevy::prelude::*;
 
@@ -8,7 +8,7 @@ use crate::game::combat::DamageKind;
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Along, Enemy};
 use crate::game::input::BuildTower;
-use crate::game::map::RiverPath;
+use crate::game::map::BuildSpot;
 use crate::game::projectile::shell_bundle;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -25,6 +25,10 @@ pub fn plugin(app: &mut App) {
 
 #[derive(Component)]
 pub struct Tower;
+
+/// On a `BuildSpot` that holds this turret.
+#[derive(Component)]
+pub struct Occupied(pub Entity);
 
 #[derive(Component, Clone, Copy, Debug)]
 pub struct TowerType(pub TowerKind);
@@ -111,22 +115,18 @@ fn construct(
     mut requests: MessageReader<BuildTower>,
     mut commands: Commands,
     mut treasury: ResMut<Treasury>,
-    path: Res<RiverPath>,
-    towers: Query<&Transform, With<Tower>>,
+    spots: Query<(&Transform, Has<Occupied>), With<BuildSpot>>,
 ) {
     for request in requests.read() {
-        if path.contains(request.position) {
+        let Ok((transform, occupied)) = spots.get(request.spot) else {
+            continue;
+        };
+        if occupied || !treasury.try_spend(request.kind.stats().cost) {
             continue;
         }
-        let occupied = towers
-            .iter()
-            .any(|t| t.translation.truncate().distance(request.position) < TILE_SIZE);
-        if occupied {
-            continue;
-        }
-        if !treasury.try_spend(request.kind.stats().cost) {
-            continue;
-        }
-        commands.spawn(tower_bundle(request.kind, request.position));
+        let tower = commands
+            .spawn(tower_bundle(request.kind, transform.translation.truncate()))
+            .id();
+        commands.entity(request.spot).insert(Occupied(tower));
     }
 }

@@ -3,9 +3,9 @@
 
 use bevy::prelude::*;
 
-use crate::balance::{TowerKind, TILE_SIZE};
-use crate::game::map::RiverPath;
-use crate::game::tower::Tower;
+use crate::balance::{TowerKind, BUILD_SPOT_RADIUS};
+use crate::game::map::{BuildSpot, RiverPath};
+use crate::game::tower::Occupied;
 use crate::game_plugin::Frame;
 
 pub fn plugin(app: &mut App) {
@@ -35,8 +35,8 @@ impl SelectedTool {
 #[derive(Message)]
 pub struct BuildTower {
     pub kind: TowerKind,
-    /// World position.
-    pub position: Vec2,
+    /// A `BuildSpot` entity.
+    pub spot: Entity,
 }
 
 #[derive(Message)]
@@ -73,6 +73,7 @@ fn read_intents(
     buttons: Res<ButtonInput<MouseButton>>,
     tool: Res<SelectedTool>,
     path: Res<RiverPath>,
+    spots: Query<(Entity, &Transform), With<BuildSpot>>,
     camera: Single<(&Camera, &GlobalTransform)>,
     window: Single<&Window>,
     mut build: MessageWriter<BuildTower>,
@@ -98,15 +99,26 @@ fn read_intents(
         return;
     };
 
-    let (along, distance) = path.project(world);
     if path.contains(world) {
+        let (along, _) = path.project(world);
         move_boat.write(MoveUBoat { along });
-    } else if distance > TILE_SIZE {
+    } else if let Some(spot) = spot_at(world, spots.iter()) {
         build.write(BuildTower {
             kind: tool.kind(),
-            position: world,
+            spot,
         });
     }
+}
+
+/// The build spot under `world`, if any.
+pub fn spot_at<'a>(
+    world: Vec2,
+    spots: impl Iterator<Item = (Entity, &'a Transform)>,
+) -> Option<Entity> {
+    spots
+        .filter(|(_, t)| t.translation.truncate().distance(world) <= BUILD_SPOT_RADIUS)
+        .map(|(entity, _)| entity)
+        .next()
 }
 
 /// Cursor in world units; `None` when the cursor is outside the window.
@@ -122,7 +134,7 @@ fn draw_hover(
     path: Res<RiverPath>,
     camera: Single<(&Camera, &GlobalTransform)>,
     window: Single<&Window>,
-    towers: Query<&Transform, With<Tower>>,
+    spots: Query<(Entity, &Transform, Has<Occupied>), With<BuildSpot>>,
 ) {
     let Some(world) = cursor_world(&camera, *window) else {
         return;
@@ -137,22 +149,24 @@ fn draw_hover(
         return;
     }
 
-    let occupied = towers
-        .iter()
-        .any(|t| t.translation.truncate().distance(world) < TILE_SIZE);
+    let Some(spot) = spot_at(world, spots.iter().map(|(e, t, _)| (e, t))) else {
+        return;
+    };
+    let (_, transform, occupied) = spots.get(spot).unwrap();
+    let centre = transform.translation.truncate();
     let color = if occupied {
         Color::srgb(0.8, 0.3, 0.3)
     } else {
         Color::srgb(0.85, 0.85, 0.6)
     };
-    gizmos.rect_2d(
-        Isometry2d::from_translation(world),
-        Vec2::splat(TILE_SIZE * 0.62),
+    gizmos.circle_2d(
+        Isometry2d::from_translation(centre),
+        BUILD_SPOT_RADIUS,
         color,
     );
     if !occupied {
         gizmos.circle_2d(
-            Isometry2d::from_translation(world),
+            Isometry2d::from_translation(centre),
             tool.kind().stats().range,
             color.with_alpha(0.35),
         );

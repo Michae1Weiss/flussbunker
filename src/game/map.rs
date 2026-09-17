@@ -1,12 +1,14 @@
 //! Static world: the river centreline as a polyline from the sea (`s = 0`) to the
-//! bunker (`s = length`), in world units, plus the arc-length maths every mover uses.
-//! Sole writer of `RiverPath`.
+//! bunker (`s = length`), in world units, plus the arc-length maths every mover uses,
+//! and the fixed build spots. Sole writer of `RiverPath`, `BuildSpot`.
 
 use bevy::prelude::*;
 
 use crate::balance::{
-    MAP_HEIGHT_TILES, MAP_WIDTH_TILES, RIVER_HALF_WIDTH, TILE_SIZE, Z_TILE, Z_TOWER,
+    BUILD_SPOT_RADIUS, MAP_HEIGHT_TILES, MAP_WIDTH_TILES, RIVER_HALF_WIDTH, TILE_SIZE, Z_TILE,
+    Z_TOWER,
 };
+use crate::game_plugin::Frame;
 use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
@@ -15,7 +17,8 @@ pub fn plugin(app: &mut App) {
         .map(|&(x, y)| tile_to_world(x, y))
         .collect();
     app.insert_resource(RiverPath::new(points))
-        .add_systems(OnEnter(Screen::Gameplay), spawn_river);
+        .add_systems(OnEnter(Screen::Gameplay), (spawn_river, spawn_build_spots))
+        .add_systems(Update, draw_build_spots.in_set(Frame::Present));
 }
 
 /// Tile coordinates, x rightwards and y downwards from the top-left corner of the map.
@@ -29,6 +32,23 @@ const CENTRELINE_TILES: &[(f32, f32)] = &[
     (28.0, 13.0),
     (28.0, 17.5),
 ];
+
+/// Tile coordinates like `CENTRELINE_TILES`. Mostly at bends, where turrets matter and
+/// torpedoes do not; deliberately too few to cover everything.
+const BUILD_SPOT_TILES: &[(f32, f32)] = &[
+    (7.5, 5.5),
+    (13.0, 4.5),
+    (14.0, 10.5),
+    (20.5, 5.5),
+    (25.5, 10.5),
+    (20.5, 14.5),
+    (25.5, 15.5),
+    (30.5, 14.5),
+];
+
+/// A place a turret can be built. Occupancy is tracked by `tower::Occupied`.
+#[derive(Component)]
+pub struct BuildSpot;
 
 pub fn tile_to_world(x: f32, y: f32) -> Vec2 {
     Vec2::new(
@@ -170,10 +190,65 @@ fn spawn_river(
     ));
 }
 
+fn spawn_build_spots(mut commands: Commands) {
+    for &(x, y) in BUILD_SPOT_TILES {
+        commands.spawn((
+            Name::new("Build spot"),
+            BuildSpot,
+            DespawnOnExit(Screen::Gameplay),
+            Transform::from_translation(tile_to_world(x, y).extend(Z_TILE)),
+        ));
+    }
+}
+
+fn draw_build_spots(mut gizmos: Gizmos, spots: Query<&Transform, With<BuildSpot>>) {
+    for transform in &spots {
+        gizmos.circle_2d(
+            Isometry2d::from_translation(transform.translation.truncate()),
+            BUILD_SPOT_RADIUS,
+            Color::srgba(0.85, 0.85, 0.6, 0.35),
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::balance::TORPEDO_RUN;
+
+    fn map() -> RiverPath {
+        let points = CENTRELINE_TILES
+            .iter()
+            .map(|&(x, y)| tile_to_world(x, y))
+            .collect();
+        RiverPath::new(points)
+    }
+
+    #[test]
+    fn build_spots_are_on_land_within_reach_of_the_river() {
+        let river = map();
+        for &(x, y) in BUILD_SPOT_TILES {
+            let (_, distance) = river.project(tile_to_world(x, y));
+            assert!(
+                distance > RIVER_HALF_WIDTH + BUILD_SPOT_RADIUS,
+                "spot ({x}, {y}) touches the water"
+            );
+            assert!(
+                distance < 3.0 * TILE_SIZE,
+                "spot ({x}, {y}) is too far from the river"
+            );
+        }
+    }
+
+    #[test]
+    fn build_spots_do_not_overlap() {
+        for (i, &(ax, ay)) in BUILD_SPOT_TILES.iter().enumerate() {
+            for &(bx, by) in &BUILD_SPOT_TILES[i + 1..] {
+                let distance = tile_to_world(ax, ay).distance(tile_to_world(bx, by));
+                assert!(distance > 2.0 * BUILD_SPOT_RADIUS);
+            }
+        }
+    }
 
     fn river() -> RiverPath {
         RiverPath::new(vec![
@@ -225,11 +300,7 @@ mod tests {
 
     #[test]
     fn the_map_has_a_straight_longer_than_a_torpedo_run() {
-        let points = CENTRELINE_TILES
-            .iter()
-            .map(|&(x, y)| tile_to_world(x, y))
-            .collect();
-        let river = RiverPath::new(points);
+        let river = map();
         let longest = river
             .segments()
             .map(|(a, b)| a.distance(b))

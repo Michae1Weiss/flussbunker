@@ -4,7 +4,7 @@
 use bevy::prelude::*;
 
 use crate::balance::{Z_PROJECTILE, Z_TOWER};
-use crate::game::combat::{Damage, DamageKind};
+use crate::game::combat::{Damage, DamageKind, Weapon};
 use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -29,6 +29,7 @@ pub struct Shell {
     pub damage: f32,
     pub ap: bool,
     pub speed: f32,
+    pub weapon: Weapon,
 }
 
 #[derive(Component)]
@@ -49,6 +50,7 @@ pub fn shell_bundle(
     damage: f32,
     ap: bool,
     speed: f32,
+    weapon: Weapon,
 ) -> impl Bundle {
     (
         Name::new("Shell"),
@@ -57,6 +59,7 @@ pub fn shell_bundle(
             damage,
             ap,
             speed,
+            weapon,
         },
         Sprite {
             color: Color::srgb(1.0, 0.92, 0.60),
@@ -135,6 +138,7 @@ fn fly_shells(
                 amount: shell.damage,
                 kind: DamageKind::Shell,
                 ap: shell.ap,
+                weapon: shell.weapon,
             });
             commands.spawn(splash_bundle(impact, Color::srgb(1.0, 0.85, 0.55), 10.0));
             commands.entity(entity).despawn();
@@ -189,6 +193,7 @@ fn run_torpedoes(
                 amount: torpedo.damage,
                 kind: DamageKind::Torpedo,
                 ap: false,
+                weapon: Weapon::Torpedo,
             });
             commands.spawn(splash_bundle(
                 enemy.translation.truncate(),

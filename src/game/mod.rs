@@ -5,6 +5,7 @@ use bevy::prelude::*;
 
 pub mod bunker;
 pub mod combat;
+pub mod destruction;
 pub mod economy;
 pub mod enemy;
 pub mod hud;
@@ -20,6 +21,7 @@ pub fn plugin(app: &mut App) {
     app.add_plugins((
         map::plugin,
         combat::plugin,
+        destruction::plugin,
         enemy::plugin,
         tower::plugin,
         projectile::plugin,

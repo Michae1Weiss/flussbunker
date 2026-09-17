@@ -11,7 +11,7 @@ use crate::balance::{
     UBOAT_REPLACEMENT_COST, UBOAT_SALVO_SPACING, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR,
     UBOAT_TRIM_SECONDS, UBOAT_TURN_RATE, Z_UBOAT,
 };
-use crate::game::combat::{Damage, DamageKind, Health, Sunk};
+use crate::game::combat::{Damage, DamageKind, Health, Sunk, Weapon};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, EnemyType};
 use crate::game::input::{CommissionUBoat, FireTorpedo, MoveUBoat, ToggleTrim};
@@ -381,6 +381,7 @@ fn fire_deck_gun(
             DECK_GUN_DAMAGE,
             false,
             DECK_GUN_SHELL_SPEED,
+            Weapon::DeckGun,
         ));
     }
 }
@@ -410,6 +411,7 @@ fn collide_with_ships(
                         amount: ship_health.max,
                         kind: DamageKind::Ram,
                         ap: false,
+                        weapon: Weapon::Ram,
                     });
                     RAM_LIGHT_COST
                 }
@@ -427,6 +429,7 @@ fn collide_with_ships(
                 amount: health.max * cost,
                 kind: DamageKind::Ram,
                 ap: false,
+                weapon: Weapon::Ram,
             });
         }
     }
@@ -438,7 +441,7 @@ fn on_kill_credit(
     mut flotilla: ResMut<Flotilla>,
 ) {
     if let Ok(last) = enemies.get(sunk.entity) {
-        if last.0 == DamageKind::Torpedo {
+        if last.0 == Weapon::Torpedo {
             flotilla.kills += 1;
         }
     }

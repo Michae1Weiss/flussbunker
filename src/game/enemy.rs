@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 
 use crate::balance::{EnemyKind, CONVOY_GAP, ENEMY_TURN_RATE, TILE_SIZE, Z_ENEMY};
-use crate::game::combat::{Armor, Health};
+use crate::game::combat::{Armor, Health, Weapon};
 use crate::game::map::RiverPath;
 use crate::game::projectile::{shell_bundle, splash_bundle};
 use crate::game::uboat::{Trim, UBoat};
@@ -197,7 +197,14 @@ fn shell_the_boat(
         }
 
         if shelling.reload.tick(time.delta()).just_finished() {
-            commands.spawn(shell_bundle(origin, target, shelling.damage, false, 700.0));
+            commands.spawn(shell_bundle(
+                origin,
+                target,
+                shelling.damage,
+                false,
+                700.0,
+                Weapon::Enemy,
+            ));
         }
     }
 }

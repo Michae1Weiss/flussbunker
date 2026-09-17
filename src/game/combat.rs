@@ -3,7 +3,7 @@
 
 use bevy::prelude::*;
 
-use crate::balance::AP_ARMOUR_FACTOR;
+use crate::balance::{TowerKind, AP_ARMOUR_FACTOR};
 use crate::game_plugin::Sim;
 
 pub fn plugin(app: &mut App) {
@@ -44,6 +44,20 @@ pub enum DamageKind {
     Torpedo,
     /// Ignores armour; collisions with the U-boat.
     Ram,
+    /// Ignores armour; explosions and falling debris.
+    Blast,
+}
+
+/// What dealt a hit; decides how the victim dies (docs/design/destruction.md).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Weapon {
+    Turret(TowerKind),
+    DeckGun,
+    Torpedo,
+    Ram,
+    Blast,
+    /// Enemy gunfire, which only ever hits the U-boat.
+    Enemy,
 }
 
 #[derive(Message, Debug)]
@@ -53,11 +67,12 @@ pub struct Damage {
     pub kind: DamageKind,
     /// Armour-piercing shell: armour counts `AP_ARMOUR_FACTOR`.
     pub ap: bool,
+    pub weapon: Weapon,
 }
 
-/// Kind of the most recent hit; inserted by `apply_damage`.
+/// Weapon of the most recent hit; inserted by `apply_damage`.
 #[derive(Component, Debug)]
-pub struct LastHitBy(pub DamageKind);
+pub struct LastHitBy(pub Weapon);
 
 /// Triggered before the despawn, so observers still read the entity's components.
 #[derive(EntityEvent, Debug)]
@@ -83,11 +98,11 @@ fn apply_damage(
                 let armor = armor.map_or(0.0, |a| a.0) * factor;
                 (hit.amount - armor).max(hit.amount * 0.1)
             }
-            DamageKind::Torpedo | DamageKind::Ram => hit.amount,
+            DamageKind::Torpedo | DamageKind::Ram | DamageKind::Blast => hit.amount,
         };
 
         health.current -= effective;
-        commands.entity(hit.target).insert(LastHitBy(hit.kind));
+        commands.entity(hit.target).insert(LastHitBy(hit.weapon));
     }
 }
 
@@ -121,6 +136,7 @@ mod tests {
                 amount,
                 kind,
                 ap: false,
+                weapon: Weapon::Torpedo,
             });
         app.update();
     }
@@ -164,6 +180,7 @@ mod tests {
                 amount: 20.0,
                 kind: DamageKind::Shell,
                 ap: true,
+                weapon: Weapon::Turret(TowerKind::Gun88),
             });
         app.update();
 

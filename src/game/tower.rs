@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use crate::balance::{
     TowerKind, SELL_REFUND, TILE_SIZE, TOWER_BUILD_SECONDS, TOWER_TIERS, Z_TOWER,
 };
-use crate::game::combat::Health;
+use crate::game::combat::{Health, Weapon};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Along, Enemy};
 use crate::game::input::{BuildTower, CycleTargeting, SellTower, UpgradeTower};
@@ -148,12 +148,12 @@ fn fire(
     time: Res<Time>,
     mut commands: Commands,
     mut towers: Query<
-        (&Transform, &Range, &Targeting, &mut Gun),
+        (&Transform, &TowerType, &Range, &Targeting, &mut Gun),
         (With<Tower>, Without<Constructing>),
     >,
     enemies: Query<(Entity, &Transform, &Along, &Health), With<Enemy>>,
 ) {
-    for (tower_transform, range, targeting, mut gun) in &mut towers {
+    for (tower_transform, kind, range, targeting, mut gun) in &mut towers {
         gun.reload.tick(time.delta());
         if !gun.reload.is_finished() {
             continue;
@@ -185,6 +185,7 @@ fn fire(
                 gun.damage,
                 gun.ap,
                 gun.projectile_speed,
+                Weapon::Turret(kind.0),
             ));
         }
     }

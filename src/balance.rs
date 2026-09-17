@@ -9,10 +9,12 @@ pub const RIVER_HALF_WIDTH: f32 = 0.9 * TILE_SIZE;
 pub const BUILD_SPOT_RADIUS: f32 = 0.5 * TILE_SIZE;
 
 pub const Z_TILE: f32 = 0.0;
+pub const Z_WRECK: f32 = 1.0;
 pub const Z_TOWER: f32 = 10.0;
 pub const Z_UBOAT: f32 = 15.0;
 pub const Z_ENEMY: f32 = 20.0;
 pub const Z_PROJECTILE: f32 = 30.0;
+pub const Z_DEBRIS: f32 = 40.0;
 pub const Z_UI: f32 = 50.0;
 
 pub const STARTING_MARKS: u32 = 170;
@@ -125,6 +127,40 @@ pub enum SizeClass {
     Heavy,
     Capital,
 }
+
+impl SizeClass {
+    /// Index into the per-class tables below.
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// Blast radius and damage of a breaking ship, by `SizeClass`.
+pub const BLAST_RADIUS: [f32; 4] = [
+    1.0 * TILE_SIZE,
+    1.5 * TILE_SIZE,
+    2.0 * TILE_SIZE,
+    3.0 * TILE_SIZE,
+];
+pub const BLAST_DAMAGE: [f32; 4] = [30.0, 60.0, 120.0, 250.0];
+/// Seconds between one explosion and the next link of a chain.
+pub const CHAIN_DELAY: f32 = 0.2;
+/// Debris pieces (low, high) of a breaking ship, by `SizeClass`.
+pub const DEBRIS_COUNT: [(u32, u32); 4] = [(1, 2), (3, 4), (5, 6), (8, 10)];
+/// Airborne pieces at once, for readability.
+pub const DEBRIS_CAP: usize = 20;
+/// (damage, size) per debris type; the first is the turret and flies first.
+pub const DEBRIS_TYPES: [(f32, f32); 6] = [
+    (60.0, 14.0),
+    (25.0, 8.0),
+    (20.0, 10.0),
+    (10.0, 6.0),
+    (30.0, 7.0),
+    (10.0, 6.0),
+];
+/// World units per second squared for debris arcs.
+pub const DEBRIS_GRAVITY: f32 = 6.0 * TILE_SIZE;
+pub const WRECK_DRIFT_SPEED: f32 = 0.6 * TILE_SIZE;
 
 pub struct EnemyStats {
     pub name: &'static str,

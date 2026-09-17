@@ -2500,6 +2500,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "flussbunker"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5160,13 +5167,6 @@ dependencies = [
  "js-sys",
  "serde_core",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "valentin"
-version = "0.1.0"
-dependencies = [
- "bevy",
 ]
 
 [[package]]

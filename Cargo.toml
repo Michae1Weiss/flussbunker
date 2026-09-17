@@ -1,19 +1,22 @@
 [package]
-name = "valentin"
+name = "flussbunker"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Pinned exactly: Bevy's API moves fast enough that a minor bump is a migration.
-bevy = "0.19.1"
+# Exact pin: a Bevy minor bump is a migration and a separate decision.
+bevy = "=0.19.1"
 
 [features]
 default = []
-# Everything that must never ship goes behind this flag.
 dev = ["bevy/bevy_dev_tools"]
 
-# --- Build speed (see references/crates-and-tooling.md) ---
-# Dependencies compiled for speed-of-execution, our own code for speed-of-compile.
+[lints.clippy]
+# Bevy systems legitimately take many parameters and complex query types.
+type_complexity = "allow"
+too_many_arguments = "allow"
+
+# Dependencies compiled for speed of execution, our own code for speed of compile.
 [profile.dev.package."*"]
 opt-level = 3
 

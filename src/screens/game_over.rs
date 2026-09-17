@@ -27,7 +27,7 @@ fn spawn_victory(mut commands: Commands) {
         DespawnOnExit(Screen::Victory),
         overlay_root(),
         children![
-            line("DIE WESER HAELT", 48.0, [0.70, 0.90, 0.72]),
+            line("DER FLUSS HAELT", 48.0, [0.70, 0.90, 0.72]),
             line("Alle Wellen abgewehrt.", 22.0, [0.72, 0.76, 0.80]),
             line("[ SPACE ]", 26.0, [0.92, 0.88, 0.60]),
         ],

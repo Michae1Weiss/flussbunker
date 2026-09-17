@@ -24,8 +24,8 @@ fn spawn_title(mut commands: Commands) {
         DespawnOnExit(Screen::Title),
         overlay_root(),
         children![
-            line("BUNKER VALENTIN", 52.0, [0.90, 0.86, 0.70]),
-            line("Halte die Weser. U-96 gehoert dir - verliere sie nicht.", 20.0, [0.72, 0.76, 0.80]),
+            line("FLUSSBUNKER", 52.0, [0.90, 0.86, 0.70]),
+            line("Halte den Fluss. U-96 gehoert dir - verliere sie nicht.", 20.0, [0.72, 0.76, 0.80]),
             line("1 / 2 / 3   Geschuetz waehlen  -  Linksklick auf Land: bauen", 18.0, [0.66, 0.70, 0.74]),
             line("Linksklick auf den Fluss: U-96 faehrt dorthin", 18.0, [0.66, 0.70, 0.74]),
             line("T  tauchen / auftauchen     N  neues U-Boot (nur wenn verloren)", 18.0, [0.66, 0.70, 0.74]),

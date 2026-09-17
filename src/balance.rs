@@ -188,6 +188,12 @@ pub const UBOAT_HEALTH: f32 = 130.0;
 pub const UBOAT_SPEED: f32 = 190.0;
 pub const UBOAT_SUBMERGED_SPEED_FACTOR: f32 = 0.7;
 pub const UBOAT_TRIM_SECONDS: f32 = 1.4;
+/// Radians per second; 180 degrees in about 0.8 s.
+pub const UBOAT_TURN_RATE: f32 = 4.0;
+/// Radians of bow misalignment with the river axis still accepted for a shot.
+pub const UBOAT_FIRE_ALIGNMENT: f32 = 10.0_f32.to_radians();
+/// Seconds between tubes while Space is held.
+pub const UBOAT_SALVO_SPACING: f32 = 0.3;
 /// Seconds per torpedo while docked.
 pub const UBOAT_REARM_SECONDS: f32 = 1.6;
 /// Must be shorter than the longest straight of the river (`map::tests`).

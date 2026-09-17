@@ -93,7 +93,7 @@ fn update_status(
         String::new()
     } else if wave.index < WAVES.len() {
         format!(
-            "   [SPACE] Welle {} starten: {}",
+            "   [ENTER] Welle {} starten: {}",
             wave.index + 1,
             WAVES[wave.index].hint
         )
@@ -156,7 +156,7 @@ fn update_boat_panel(
         .collect();
 
     panel.0 = format!(
-        "U-96  {} ({} Abschuesse)   Torpedos [{}]   Rumpf {:.0}%   {}   [T] tauchen",
+        "U-96  {} ({} Abschuesse)   Torpedos [{}]   Rumpf {:.0}%   {}   [Rechtsklick] tauchen  [Space] Torpedo",
         rank.name,
         flotilla.kills,
         pips,

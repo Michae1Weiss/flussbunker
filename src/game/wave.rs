@@ -16,7 +16,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_systems(
             Update,
             start_wave
-                .run_if(in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Space))),
+                .run_if(in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Enter))),
         )
         .add_systems(
             FixedUpdate,

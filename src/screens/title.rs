@@ -36,12 +36,12 @@ fn spawn_title(mut commands: Commands) {
                 [0.66, 0.70, 0.74]
             ),
             line(
-                "T  tauchen / auftauchen     N  neues U-Boot (nur wenn verloren)",
+                "Rechtsklick  tauchen / auftauchen     Space  Torpedo (halten: Salve)",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),
             line(
-                "Space  naechste Welle starten (kein Auto-Start)",
+                "Enter  naechste Welle starten (kein Auto-Start)",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),

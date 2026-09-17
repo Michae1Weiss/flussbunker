@@ -1,17 +1,17 @@
-//! The player's U-boat: river movement, dive state, torpedoes, rearming.
-//! Sole writer of `Flotilla`, `Trim`, `Torpedoes`, `Station`.
+//! The player's U-boat: river movement, heading, dive state, torpedoes, rearming.
+//! Sole writer of `Flotilla`, `Trim`, `Heading`, `Torpedoes`, `Station`.
+//! Rules: docs/design/uboat.md
 
 use bevy::prelude::*;
 
 use crate::balance::{
-    rank_for, RIVER_HALF_WIDTH, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED, UBOAT_HEALTH,
-    UBOAT_REARM_SECONDS, UBOAT_REPLACEMENT_COST, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR,
-    UBOAT_TRIM_SECONDS, Z_UBOAT,
+    rank_for, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED, UBOAT_FIRE_ALIGNMENT, UBOAT_HEALTH,
+    UBOAT_REARM_SECONDS, UBOAT_REPLACEMENT_COST, UBOAT_SALVO_SPACING, UBOAT_SPEED,
+    UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TRIM_SECONDS, UBOAT_TURN_RATE, Z_UBOAT,
 };
 use crate::game::combat::{DamageKind, Health, Sunk};
 use crate::game::economy::Treasury;
-use crate::game::enemy::Enemy;
-use crate::game::input::{CommissionUBoat, MoveUBoat, ToggleTrim};
+use crate::game::input::{CommissionUBoat, FireTorpedo, MoveUBoat, ToggleTrim};
 use crate::game::map::RiverPath;
 use crate::game::projectile::torpedo_bundle;
 use crate::game_plugin::Sim;
@@ -56,7 +56,7 @@ fn reset(mut flotilla: ResMut<Flotilla>) {
 #[derive(Component)]
 pub struct UBoat;
 
-/// Dive state. Transitions take `UBOAT_TRIM_SECONDS`; intents during a transition are ignored.
+/// Dive state. A toggle during a transition reverses it, keeping the elapsed depth.
 #[derive(Component, Debug)]
 pub enum Trim {
     Surfaced,
@@ -82,12 +82,31 @@ impl Trim {
             Trim::Surfacing(_) => "taucht auf...",
         }
     }
+
+    fn toggled(&self) -> Self {
+        let fresh = || Timer::from_seconds(UBOAT_TRIM_SECONDS, TimerMode::Once);
+        let reversed = |t: &Timer| {
+            let mut timer = fresh();
+            timer.set_elapsed(t.remaining());
+            timer
+        };
+        match self {
+            Trim::Surfaced => Trim::Submerging(fresh()),
+            Trim::Submerged => Trim::Surfacing(fresh()),
+            Trim::Submerging(t) => Trim::Surfacing(reversed(t)),
+            Trim::Surfacing(t) => Trim::Submerging(reversed(t)),
+        }
+    }
 }
+
+/// Unit bow direction. Follows the direction of travel; unchanged at rest.
+#[derive(Component)]
+pub struct Heading(pub Vec2);
 
 #[derive(Component)]
 pub struct Torpedoes {
     pub loaded: u8,
-    /// Per-shot reload.
+    /// Spacing between tubes of a salvo; a torpedo fires only once this has finished.
     pub tube: Timer,
     /// Per-torpedo resupply while docked.
     pub rearm: Timer,
@@ -128,15 +147,18 @@ fn commission(
 
         let rank = rank_for(flotilla.kills);
         flotilla.at_sea = true;
+        let mut tube = Timer::from_seconds(UBOAT_SALVO_SPACING, TimerMode::Once);
+        tube.set_elapsed(tube.duration());
 
         commands.spawn((
             Name::new("U-96"),
             UBoat,
             Health::new(UBOAT_HEALTH),
             Trim::Surfaced,
+            Heading(-path.tangent_at(path.length())),
             Torpedoes {
                 loaded: rank.torpedoes,
-                tube: Timer::from_seconds(rank.reload, TimerMode::Repeating),
+                tube,
                 rearm: Timer::from_seconds(UBOAT_REARM_SECONDS, TimerMode::Repeating),
             },
             Station {
@@ -171,16 +193,7 @@ fn apply_trim_intents(
 ) {
     for _ in intents.read() {
         for mut trim in &mut boats {
-            *trim = match *trim {
-                Trim::Surfaced => {
-                    Trim::Submerging(Timer::from_seconds(UBOAT_TRIM_SECONDS, TimerMode::Once))
-                }
-                Trim::Submerged => {
-                    Trim::Surfacing(Timer::from_seconds(UBOAT_TRIM_SECONDS, TimerMode::Once))
-                }
-                Trim::Submerging(ref t) => Trim::Submerging(t.clone()),
-                Trim::Surfacing(ref t) => Trim::Surfacing(t.clone()),
-            };
+            *trim = trim.toggled();
         }
     }
 }
@@ -188,11 +201,20 @@ fn apply_trim_intents(
 fn navigate(
     time: Res<Time>,
     path: Res<RiverPath>,
-    mut boats: Query<(&mut Transform, &mut Station, &mut Trim, &mut Sprite), With<UBoat>>,
+    mut boats: Query<
+        (
+            &mut Transform,
+            &mut Station,
+            &mut Heading,
+            &mut Trim,
+            &mut Sprite,
+        ),
+        With<UBoat>,
+    >,
 ) {
     let step = time.delta_secs();
 
-    for (mut transform, mut station, mut trim, mut sprite) in &mut boats {
+    for (mut transform, mut station, mut heading, mut trim, mut sprite) in &mut boats {
         match &mut *trim {
             Trim::Submerging(t) => {
                 if t.tick(time.delta()).just_finished() {
@@ -219,17 +241,17 @@ fn navigate(
         };
 
         let remaining = station.goal - station.along;
-        if remaining == 0.0 {
-            continue;
+        if remaining != 0.0 {
+            let travel = (speed * step).min(remaining.abs());
+            station.along += travel.copysign(remaining);
+            let wanted = path.tangent_at(station.along) * remaining.signum();
+            heading.0 = heading.0.rotate_towards(wanted, UBOAT_TURN_RATE * step);
         }
-        let travel = (speed * step).min(remaining.abs());
-        station.along += travel.copysign(remaining);
 
         let z = transform.translation.z;
         transform.translation = path.point_at(station.along).extend(z);
-        let heading = path.tangent_at(station.along) * remaining.signum();
         transform.rotation =
-            Quat::from_rotation_z(heading.to_angle() - std::f32::consts::FRAC_PI_2);
+            Quat::from_rotation_z(heading.0.to_angle() - std::f32::consts::FRAC_PI_2);
     }
 }
 
@@ -251,43 +273,41 @@ fn rearm(
     }
 }
 
-/// Fires up the straight the boat sits on, only while an enemy is in that lane.
+/// One torpedo per `FireTorpedo` intent, along the river axis the bow is aligned
+/// with. Refused while submerged, turning, or with empty tubes.
 fn fire_torpedoes(
     time: Res<Time>,
     path: Res<RiverPath>,
     mut commands: Commands,
     flotilla: Res<Flotilla>,
-    mut boats: Query<(&Transform, &Station, &Trim, &mut Torpedoes), With<UBoat>>,
-    enemies: Query<&Transform, With<Enemy>>,
+    mut intents: MessageReader<FireTorpedo>,
+    mut boats: Query<(&Transform, &Station, &Heading, &Trim, &mut Torpedoes), With<UBoat>>,
 ) {
     let rank = rank_for(flotilla.kills);
+    let requested = intents.read().count() > 0;
 
-    for (transform, station, trim, mut torpedoes) in &mut boats {
-        if !trim.can_fire() || torpedoes.loaded == 0 {
-            torpedoes.tube.reset();
+    for (transform, station, heading, trim, mut torpedoes) in &mut boats {
+        torpedoes.tube.tick(time.delta());
+        if !requested || !trim.can_fire() || torpedoes.loaded == 0 || !torpedoes.tube.is_finished()
+        {
             continue;
         }
-        if !torpedoes.tube.tick(time.delta()).just_finished() {
-            continue;
-        }
 
-        let heading = -path.tangent_at(station.along);
-        let origin = transform.translation.truncate();
-        let has_target = enemies.iter().any(|enemy| {
-            let offset = enemy.translation.truncate() - origin;
-            let along = offset.dot(heading);
-            let across = (offset - heading * along).length();
-            along > 0.0 && along <= TORPEDO_RUN && across <= RIVER_HALF_WIDTH
-        });
-        if !has_target {
-            torpedoes.tube.reset();
+        let tangent = path.tangent_at(station.along);
+        let axis = if heading.0.dot(tangent) >= 0.0 {
+            tangent
+        } else {
+            -tangent
+        };
+        if heading.0.angle_to(axis).abs() > UBOAT_FIRE_ALIGNMENT {
             continue;
         }
 
         torpedoes.loaded -= 1;
+        torpedoes.tube.reset();
         commands.spawn(torpedo_bundle(
-            origin,
-            heading,
+            transform.translation.truncate(),
+            axis,
             rank.damage,
             TORPEDO_SPEED,
             TORPEDO_RUN,

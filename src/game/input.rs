@@ -13,6 +13,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_message::<BuildTower>()
         .add_message::<MoveUBoat>()
         .add_message::<ToggleTrim>()
+        .add_message::<FireTorpedo>()
         .add_message::<CommissionUBoat>()
         .add_systems(
             Update,
@@ -47,6 +48,10 @@ pub struct MoveUBoat {
 #[derive(Message)]
 pub struct ToggleTrim;
 
+/// Sent every frame while the fire key is held; the boat rate-limits it.
+#[derive(Message)]
+pub struct FireTorpedo;
+
 #[derive(Message)]
 pub struct CommissionUBoat {
     pub free: bool,
@@ -73,10 +78,14 @@ fn read_intents(
     mut build: MessageWriter<BuildTower>,
     mut move_boat: MessageWriter<MoveUBoat>,
     mut trim: MessageWriter<ToggleTrim>,
+    mut fire: MessageWriter<FireTorpedo>,
     mut commission: MessageWriter<CommissionUBoat>,
 ) {
-    if keys.just_pressed(KeyCode::KeyT) {
+    if keys.just_pressed(KeyCode::KeyT) || buttons.just_pressed(MouseButton::Right) {
         trim.write(ToggleTrim);
+    }
+    if keys.pressed(KeyCode::Space) {
+        fire.write(FireTorpedo);
     }
     if keys.just_pressed(KeyCode::KeyN) {
         commission.write(CommissionUBoat { free: false });

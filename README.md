@@ -7,18 +7,20 @@ Working title. Fictional setting, Kriegsmarine-era optics, cartoon tone. See `do
 
 ## Status
 
-**Planning done, greybox next.** A playable proof of concept exists in `src/` (coloured
-rectangles, 12 waves). It predates the design in `docs/` and will be reshaped milestone by
-milestone (`docs/ROADMAP.md`). Expect the code and the docs to disagree until then; the docs win.
+**Greybox, roadmap M5 done.** A full run is playable with coloured rectangles: prologue, twelve
+waves, three turret roles with upgrades, three boat models, destruction, onboarding notes and a
+telemetry CSV per run (`telemetry/`, not committed). Milestones and kill criteria: `docs/ROADMAP.md`.
 
 ```bash
-cargo run                    # play the proof of concept
+cargo run                    # play
 cargo run --features dev     # + FPS log and schedule ambiguity warnings
 cargo test
 ```
 
-PoC controls: `1`/`2`/`3` pick a gun · left-click land to build · left-click water to send the
-boat · `T` dive · `Space` next wave. These change in the greybox (`docs/design/ui-input.md`).
+Controls: left-click a build spot or turret for the radial menu, left-click the river to move the
+boat, the docked boat for the shipyard. Right-click dives. Space fires (hold: salvo). Enter starts
+the next wave, F toggles 2x pace, Esc closes a menu. Feel harnesses: `cargo run --example boat`,
+`cargo run --example turrets`.
 
 ## Read in this order
 

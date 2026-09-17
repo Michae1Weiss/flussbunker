@@ -35,6 +35,8 @@ game before any further code. Decisions, with reasons:
 | Monitor armour above any shell's damage | the mechanical guarantee for pillar 1; with ordinary armour four maxed 15 cm would kill it |
 | Destroyer 380 HP, three VIIA torpedoes | 400 HP left 10 HP after three torpedoes, which feels like a wasted torpedo |
 | Boat stops, turns on the spot, then moves (M1 feel test, 2026-09-17) | turning while moving read as a car, not a boat; reversing without stopping felt broken |
+| Docked hull repair is free and automatic; the only money mechanic of damage is the 30 % bill after a loss (M5) | two repair mechanics would double the rule; the shipyard menu holds only the next model |
+| Blast only on Break, not on Explode (M4 feel test) | the matrix as approved; chains come from torpedoes and the 15 cm, not from every kill |
 
 ## Rejected ideas
 

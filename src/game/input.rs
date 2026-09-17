@@ -24,6 +24,7 @@ pub fn plugin(app: &mut App) {
         .add_message::<FireTorpedo>()
         .add_message::<UpgradeBoat>()
         .add_message::<ToggleSpeed>()
+        .add_message::<TogglePause>()
         .add_systems(Update, read_intents.in_set(Frame::Input))
         .add_systems(Update, draw_hover.in_set(Frame::Present));
 }
@@ -77,6 +78,10 @@ pub struct UpgradeBoat;
 #[derive(Message)]
 pub struct ToggleSpeed;
 
+/// Esc with no menu open.
+#[derive(Message)]
+pub struct TogglePause;
+
 #[derive(SystemParam)]
 struct Intents<'w> {
     build: MessageWriter<'w, BuildTower>,
@@ -90,6 +95,7 @@ struct Intents<'w> {
     fire: MessageWriter<'w, FireTorpedo>,
     upgrade_boat: MessageWriter<'w, UpgradeBoat>,
     speed: MessageWriter<'w, ToggleSpeed>,
+    pause: MessageWriter<'w, TogglePause>,
 }
 
 fn read_intents(
@@ -113,7 +119,11 @@ fn read_intents(
         intents.fire.write(FireTorpedo);
     }
     if keys.just_pressed(KeyCode::Escape) {
-        intents.close_menu.write(CloseMenu);
+        if menu.open.is_some() {
+            intents.close_menu.write(CloseMenu);
+        } else {
+            intents.pause.write(TogglePause);
+        }
     }
     if keys.just_pressed(KeyCode::KeyF) {
         intents.speed.write(ToggleSpeed);

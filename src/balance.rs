@@ -18,6 +18,13 @@ pub const Z_DEBRIS: f32 = 40.0;
 pub const Z_UI: f32 = 50.0;
 /// Seconds an onboarding note stays readable.
 pub const NOTE_SECONDS: f32 = 4.0;
+/// Seconds an enemy stays white after a hit.
+pub const FLASH_SECONDS: f32 = 0.1;
+/// Camera offset in world units at full trauma, and trauma lost per second.
+pub const SHAKE_MAX_OFFSET: f32 = 14.0;
+pub const SHAKE_DECAY: f32 = 1.6;
+/// Seconds the displayed RM take to catch up with the treasury.
+pub const RM_TWEEN_SECONDS: f32 = 0.3;
 
 pub const STARTING_MARKS: u32 = 0;
 /// RM paid at the end of every wave, kills or not.

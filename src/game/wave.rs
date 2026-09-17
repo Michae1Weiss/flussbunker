@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use crate::balance::{EnemyKind, WAVES, WAVE_CLEAR_BONUS};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{enemy_bundle, shelling_bundle, Cruising, Enemy};
-use crate::game::input::ToggleSpeed;
+use crate::game::input::{TogglePause, ToggleSpeed};
 use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -24,7 +24,7 @@ pub fn plugin(app: &mut App) {
                 start_wave.run_if(
                     in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Enter)),
                 ),
-                toggle_pace.run_if(in_state(Screen::Gameplay)),
+                (toggle_pace, toggle_pause).run_if(in_state(Screen::Gameplay)),
             ),
         )
         .add_systems(
@@ -97,10 +97,22 @@ impl WaveState {
 fn reset(mut wave: ResMut<WaveState>, mut time: ResMut<Time<Virtual>>) {
     *wave = WaveState::default();
     time.set_relative_speed(1.0);
+    time.unpause();
 }
 
 fn normal_pace(mut time: ResMut<Time<Virtual>>) {
     time.set_relative_speed(1.0);
+    time.unpause();
+}
+
+fn toggle_pause(mut intents: MessageReader<TogglePause>, mut time: ResMut<Time<Virtual>>) {
+    for _ in intents.read() {
+        if time.is_paused() {
+            time.unpause();
+        } else {
+            time.pause();
+        }
+    }
 }
 
 fn spawn_prologue(mut commands: Commands, path: Res<RiverPath>) {

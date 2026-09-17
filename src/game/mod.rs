@@ -10,6 +10,7 @@ pub mod economy;
 pub mod enemy;
 pub mod hud;
 pub mod input;
+pub mod juice;
 pub mod map;
 pub mod notes;
 pub mod projectile;
@@ -29,10 +30,13 @@ pub fn plugin(app: &mut App) {
         projectile::plugin,
         uboat::plugin,
         wave::plugin,
+    ));
+    app.add_plugins((
         economy::plugin,
         bunker::plugin,
         radial::plugin,
         notes::plugin,
+        juice::plugin,
         telemetry::plugin,
         input::plugin,
         hud::plugin,

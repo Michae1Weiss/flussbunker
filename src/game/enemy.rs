@@ -3,7 +3,7 @@
 
 use bevy::prelude::*;
 
-use crate::balance::{EnemyKind, Z_ENEMY};
+use crate::balance::{EnemyKind, ENEMY_TURN_RATE, Z_ENEMY};
 use crate::game::combat::{Armor, Damage, DamageKind, Health};
 use crate::game::map::RiverPath;
 use crate::game::projectile::splash_bundle;
@@ -108,9 +108,13 @@ fn advance_along_river(
         let z = transform.translation.z;
         transform.translation = path.point_at(along.0).extend(z);
         // Sprites are drawn bow-up, hence the -90°.
-        transform.rotation = Quat::from_rotation_z(
-            path.tangent_at(along.0).to_angle() - std::f32::consts::FRAC_PI_2,
+        let bow = (transform.rotation * Vec3::Y).truncate();
+        let heading = bow.rotate_towards(
+            path.tangent_at(along.0),
+            ENEMY_TURN_RATE * time.delta_secs(),
         );
+        transform.rotation =
+            Quat::from_rotation_z(heading.to_angle() - std::f32::consts::FRAC_PI_2);
     }
 }
 

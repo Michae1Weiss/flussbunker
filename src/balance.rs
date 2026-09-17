@@ -207,6 +207,10 @@ pub const UBOAT_SUBMERGED_SPEED_FACTOR: f32 = 0.7;
 pub const UBOAT_TRIM_SECONDS: f32 = 1.4;
 /// Radians per second; 180 degrees in about 0.8 s.
 pub const UBOAT_TURN_RATE: f32 = 4.0;
+/// The boat moves only once its bow is within this many radians of the travel direction.
+pub const UBOAT_MOVE_ALIGNMENT: f32 = 4.0_f32.to_radians();
+/// Radians per second enemy ships turn through bends without slowing.
+pub const ENEMY_TURN_RATE: f32 = 3.0;
 /// Radians of bow misalignment with the river axis still accepted for a shot.
 pub const UBOAT_FIRE_ALIGNMENT: f32 = 10.0_f32.to_radians();
 /// Seconds between tubes while Space is held.

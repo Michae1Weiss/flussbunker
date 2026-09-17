@@ -7,9 +7,9 @@ use bevy::prelude::*;
 use crate::balance::{
     rank_for, SizeClass, DECK_GUN_DAMAGE, DECK_GUN_RANGE, DECK_GUN_RELOAD, DECK_GUN_SHELL_SPEED,
     RAM_HEAVY_COST, RAM_LIGHT_COST, RAM_SHOVE, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED,
-    UBOAT_FIRE_ALIGNMENT, UBOAT_HEALTH, UBOAT_LENGTH, UBOAT_REARM_SECONDS, UBOAT_REPLACEMENT_COST,
-    UBOAT_SALVO_SPACING, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TRIM_SECONDS,
-    UBOAT_TURN_RATE, Z_UBOAT,
+    UBOAT_FIRE_ALIGNMENT, UBOAT_HEALTH, UBOAT_LENGTH, UBOAT_MOVE_ALIGNMENT, UBOAT_REARM_SECONDS,
+    UBOAT_REPLACEMENT_COST, UBOAT_SALVO_SPACING, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR,
+    UBOAT_TRIM_SECONDS, UBOAT_TURN_RATE, Z_UBOAT,
 };
 use crate::game::combat::{Damage, DamageKind, Health, Sunk};
 use crate::game::economy::Treasury;
@@ -274,12 +274,17 @@ fn navigate(
             _ => UBOAT_SPEED * UBOAT_SUBMERGED_SPEED_FACTOR,
         };
 
+        // Stop, turn on the spot, then move: the tangent is sampled slightly ahead so a
+        // boat standing exactly on a bend turns toward the straight it is about to enter.
         let remaining = station.goal - station.along;
         if remaining != 0.0 {
-            let travel = (speed * step).min(remaining.abs());
-            station.along += travel.copysign(remaining);
-            let wanted = path.tangent_at(station.along) * remaining.signum();
+            let ahead = station.along + remaining.signum();
+            let wanted = path.tangent_at(ahead) * remaining.signum();
             heading.0 = heading.0.rotate_towards(wanted, UBOAT_TURN_RATE * step);
+            if heading.0.angle_to(wanted).abs() <= UBOAT_MOVE_ALIGNMENT {
+                let travel = (speed * step).min(remaining.abs());
+                station.along += travel.copysign(remaining);
+            }
         }
 
         let z = transform.translation.z;

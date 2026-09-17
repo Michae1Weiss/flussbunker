@@ -34,6 +34,7 @@ game before any further code. Decisions, with reasons:
 | Input module is `input`, messages are named by intent | the PoC's `orders` was fiction naming: three words (input, orders, intents) for one thing cost every reader a lookup |
 | Monitor armour above any shell's damage | the mechanical guarantee for pillar 1; with ordinary armour four maxed 15 cm would kill it |
 | Destroyer 380 HP, three VIIA torpedoes | 400 HP left 10 HP after three torpedoes, which feels like a wasted torpedo |
+| Boat stops, turns on the spot, then moves (M1 feel test, 2026-09-17) | turning while moving read as a car, not a boat; reversing without stopping felt broken |
 
 ## Rejected ideas
 
@@ -63,7 +64,7 @@ game before any further code. Decisions, with reasons:
 |---|---|---|
 | 8 build spots is the right scarcity | `map.md` | testers never face a "which spot" decision, or always run out |
 | Testers do not forget the boat mid-wave | `uboat.md` | ≥2/5 leave it docked for a whole wave → add auto-fire baseline |
-| Heading-by-movement is not annoying | `uboat.md` | testers complain about turning → auto-swing upstream after 3 s |
+| Stop-turn-go at bends is not annoying | `uboat.md` | testers complain about standing still at bends → let small angles turn while moving |
 | Losing the boat costs the wave plus a 30 % bill, and that feels fair | `uboat.md` | rage-quits after a loss |
 | Ranging-in warning is enough to learn diving | `onboarding.md` | <3/5 dive in the first destroyer wave |
 | Prologue bounty size gives one real decision | `economy.md` | everyone buys the same thing |

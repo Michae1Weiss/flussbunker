@@ -8,8 +8,9 @@ Exactly one boat, present from the first second. It is the identity of the game
 - Left-click on the river: the boat travels along the centreline to the nearest point.
   Clicking the bunker sends it home. The last order wins; orders are never queued or refused.
 - **Heading:** the bow points in the last direction of travel. There is no turn command; to turn,
-  move. Turning is animated (~0.8 s for 180°).
-  - Hypothesis: if this annoys, auto-swing the bow upstream after 3 s at rest.
+  move. The boat **stops, turns on the spot (~0.8 s for 180°), then moves**; at a bend it does the
+  same for the smaller angle. Turning while moving felt wrong in the first feel test.
+  - Hypothesis: if standing still at bends annoys, let small angles turn while moving.
 - Surface speed 100 %, submerged 70 %.
 
 ## Dive

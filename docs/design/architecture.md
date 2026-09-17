@@ -14,7 +14,7 @@ src/
 ├── screens/            title · gameplay · game_over   (state flow, DespawnOnExit)
 └── game/               one plugin per feature: map, uboat, tower, enemy, projectile,
                         combat, destruction, wave, economy, bunker, orders (input), hud, telemetry
-examples/               isolated mechanic prototypes ("Lego bricks"), runnable on their own
+examples/               feel harnesses: a minimal App around ONE crate plugin, runnable on its own
 ```
 
 Feature-based, never layer-based. A feature branch touches one or two files.
@@ -56,6 +56,19 @@ map · pen slot freed by an observer on `Sunk`.
 
 `orders.rs` is the only module that reads input. It maps keys to **intents** (`docs/design/ui-input.md`)
 and writes messages. Touch later is a second mapping in the same file.
+
+## Feel harnesses in `examples/`
+
+Some questions can only be answered by hand: does the radial menu open smoothly, does turning
+feel right, is the chain explosion readable. For those, `examples/<feature>.rs` builds a minimal
+`App` with dummy world data around the **crate's own plugin** — never a copy of it. This needs a
+`lib.rs` plus a thin `main.rs` (the `bevy_new_2d` layout). Each harness answers one question and
+is listed in its milestone; CI builds them (`cargo build --examples`) so they cannot rot.
+Integration into the running game is a separate step with its own check. Numbers are never tuned
+in a harness; they come from the balance model and the headless tests.
+
+MVP harnesses: boat movement + turning + dive, torpedo lane + bank hit, ramming (M1); radial menu
+(M2); chain explosion + debris arcs (M4).
 
 ## Telemetry
 

@@ -7,7 +7,7 @@ art) until M8.
 
 | # | Milestone | Deliverable | Hypothesis | Kill criterion | ~h |
 |---|---|---|---|---|---|
-| 0 | Repo hygiene | crate renamed, project board, PoC comments stripped per `COMMENTS.md` (issues, labels and milestones exist) | – | – | 6 |
+| 0 | Repo hygiene | crate renamed, `lib.rs` + thin `main.rs`, project board, PoC comments stripped per `COMMENTS.md` (issues, labels and milestones exist) | – | – | 6 |
 | 1 | Boat on the river | river with straights and bends, centreline movement, heading rule, dive, torpedo lanes, deck gun, ramming vs dummy ships | "position is the aim" is fun with rectangles | you do not reposition the boat voluntarily | 25 |
 | 2 | Emplacements | 8 spots, radial menu, 3 turrets, upgrades, hold-to-sell, targeting modes, build time | the radial menu is usable without explanation | you need a tooltip to build | 20 |
 | 3 | Enemies | 5 types, size class, armour rule, convoy rule, destroyer ranging-in and shelling, breach | the destroyer forces diving | you survive a destroyer surfaced | 15 |
@@ -22,7 +22,8 @@ Total ~150 h. Anything not in the table is a GitHub issue labelled `idea` and is
 ## Sequencing rules
 
 - Do not start a milestone before the previous kill criterion is checked.
-- Numbers come from the balance model (round 3), never typed straight into `balance.rs`.
+- Numbers come from the balance model (`tools/balance_model.py` → `docs/balance/`), never typed straight into `balance.rs`.
+- Feel is tested in `examples/` harnesses around the crate's plugins (`architecture.md`), one question per harness.
 - A **style test** runs in parallel to M1–M4 at near-zero cost: one hand-drawn frame at game size,
   to learn whether pencil on paper stays readable before 100 h of greybox assume it does.
 - Bevy stays pinned; a migration is a separate, user-initiated decision.

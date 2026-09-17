@@ -1,63 +1,74 @@
-//! The player's U-boat: river movement, heading, dive state, torpedoes, deck gun, ramming.
-//! Sole writer of `Flotilla`, `Trim`, `Heading`, `Torpedoes`, `Station`, `DeckGun`, `Rammed`.
-//! Rules: docs/design/uboat.md
+//! The player's U-boat: models, river movement, heading, dive state, torpedoes, deck gun,
+//! ramming, loss and return. Sole writer of `Flotilla`, `Model`, `Trim`, `Heading`,
+//! `Torpedoes`, `Station`, `DeckGun`, `Rammed`. Rules: docs/design/uboat.md
 
 use bevy::prelude::*;
 
 use crate::balance::{
-    rank_for, SizeClass, DECK_GUN_DAMAGE, DECK_GUN_RANGE, DECK_GUN_RELOAD, DECK_GUN_SHELL_SPEED,
-    RAM_HEAVY_COST, RAM_LIGHT_COST, RAM_SHOVE, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED,
-    UBOAT_FIRE_ALIGNMENT, UBOAT_HEALTH, UBOAT_LENGTH, UBOAT_MOVE_ALIGNMENT, UBOAT_REARM_SECONDS,
-    UBOAT_REPLACEMENT_COST, UBOAT_SALVO_SPACING, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR,
-    UBOAT_TRIM_SECONDS, UBOAT_TURN_RATE, Z_UBOAT,
+    BoatModel, SizeClass, DECK_GUN_DAMAGE, DECK_GUN_RANGE, DECK_GUN_RELOAD, DECK_GUN_SHELL_SPEED,
+    DOCK_REPAIR_PER_SECOND, RAM_HEAVY_COST, RAM_LIGHT_COST, RAM_SHOVE, REPAIR_BILL, TILE_SIZE,
+    TORPEDO_RUN, TORPEDO_SPEED, UBOAT_FIRE_ALIGNMENT, UBOAT_LENGTH, UBOAT_MOVE_ALIGNMENT,
+    UBOAT_REARM_SECONDS, UBOAT_SALVO_SPACING, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TURN_RATE,
+    UNPAID_RETURN_HP, Z_UBOAT,
 };
 use crate::game::combat::{Damage, DamageKind, Health, Sunk, Weapon};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, EnemyType};
-use crate::game::input::{CommissionUBoat, FireTorpedo, MoveUBoat, ToggleTrim};
+use crate::game::input::{FireTorpedo, MoveUBoat, ToggleTrim, UpgradeBoat};
 use crate::game::map::RiverPath;
 use crate::game::projectile::{shell_bundle, torpedo_bundle};
+use crate::game::wave::WaveFinished;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Flotilla>()
-        .add_systems(
-            OnEnter(Screen::Gameplay),
-            (reset, commission_first_boat).chain(),
-        )
+        .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(
             FixedUpdate,
             (
-                (commission, apply_move_intents, apply_trim_intents).in_set(Sim::Spawn),
+                (
+                    return_after_wave,
+                    apply_upgrades,
+                    apply_move_intents,
+                    apply_trim_intents,
+                )
+                    .chain()
+                    .in_set(Sim::Spawn),
                 navigate.in_set(Sim::Movement),
-                (rearm, fire_torpedoes, fire_deck_gun, collide_with_ships).in_set(Sim::Targeting),
+                (dock, fire_torpedoes, fire_deck_gun, collide_with_ships).in_set(Sim::Targeting),
             ),
         )
-        .add_observer(on_boat_lost)
-        .add_observer(on_kill_credit);
+        .add_observer(on_boat_lost);
 }
 
-/// Outlives the boat entity. `at_sea` and `kills` are reset by `on_boat_lost`,
-/// which runs before the entity despawns.
-#[derive(Resource, Default, Debug)]
+/// Outlives the boat entity. `at_sea` is cleared by `on_boat_lost`, which runs before
+/// the entity despawns.
+#[derive(Resource, Debug)]
 pub struct Flotilla {
-    pub kills: u32,
+    pub model: BoatModel,
     pub at_sea: bool,
-    /// RM for the next boat.
-    pub replacement_cost: u32,
 }
 
-fn reset(mut flotilla: ResMut<Flotilla>) {
-    *flotilla = Flotilla {
-        kills: 0,
-        at_sea: false,
-        replacement_cost: UBOAT_REPLACEMENT_COST,
-    };
+impl Default for Flotilla {
+    fn default() -> Self {
+        Self {
+            model: BoatModel::ViiA,
+            at_sea: false,
+        }
+    }
+}
+
+fn reset(mut commands: Commands, mut flotilla: ResMut<Flotilla>, path: Res<RiverPath>) {
+    *flotilla = Flotilla::default();
+    commission(&mut commands, &mut flotilla, &path, 1.0);
 }
 
 #[derive(Component)]
 pub struct UBoat;
+
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Model(pub BoatModel);
 
 /// Dive state. A toggle during a transition reverses it, keeping the elapsed depth.
 #[derive(Component, Debug)]
@@ -86,8 +97,8 @@ impl Trim {
         }
     }
 
-    fn toggled(&self) -> Self {
-        let fresh = || Timer::from_seconds(UBOAT_TRIM_SECONDS, TimerMode::Once);
+    fn toggled(&self, dive_seconds: f32) -> Self {
+        let fresh = || Timer::from_seconds(dive_seconds, TimerMode::Once);
         let reversed = |t: &Timer| {
             let mut timer = fresh();
             timer.set_elapsed(t.remaining());
@@ -135,61 +146,116 @@ pub struct Station {
 
 impl Station {
     /// Within a tile of the bunker.
-    fn is_docked(&self, path: &RiverPath) -> bool {
+    pub fn is_docked(&self, path: &RiverPath) -> bool {
         self.along >= path.length() - TILE_SIZE
     }
 }
 
-fn commission_first_boat(mut intents: MessageWriter<CommissionUBoat>) {
-    intents.write(CommissionUBoat { free: true });
+fn ready(seconds: f32) -> Timer {
+    let mut timer = Timer::from_seconds(seconds, TimerMode::Once);
+    timer.set_elapsed(timer.duration());
+    timer
 }
 
+fn sprite_for(model: BoatModel) -> Sprite {
+    let length = UBOAT_LENGTH + 4.0 * model as u8 as f32;
+    Sprite {
+        color: Color::srgb(0.42, 0.47, 0.52),
+        custom_size: Some(Vec2::new(12.0, length)),
+        ..default()
+    }
+}
+
+/// Spawns the flotilla's model at the bunker with `hp_fraction` of its hull.
 fn commission(
-    mut intents: MessageReader<CommissionUBoat>,
+    commands: &mut Commands,
+    flotilla: &mut Flotilla,
+    path: &RiverPath,
+    hp_fraction: f32,
+) {
+    let stats = flotilla.model.stats();
+    flotilla.at_sea = true;
+    let mut health = Health::new(stats.hp);
+    health.current = stats.hp * hp_fraction;
+    commands.spawn((
+        Name::new("U-96"),
+        UBoat,
+        Model(flotilla.model),
+        health,
+        Trim::Surfaced,
+        Heading(-path.tangent_at(path.length())),
+        DeckGun {
+            reload: ready(DECK_GUN_RELOAD),
+        },
+        Torpedoes {
+            loaded: stats.tubes,
+            tube: ready(UBOAT_SALVO_SPACING),
+            rearm: Timer::from_seconds(UBOAT_REARM_SECONDS, TimerMode::Repeating),
+        },
+        Station {
+            along: path.length(),
+            goal: path.length(),
+        },
+        sprite_for(flotilla.model),
+        Transform::from_translation(path.bunker_point().extend(Z_UBOAT)),
+        DespawnOnExit(Screen::Gameplay),
+    ));
+}
+
+/// A sunk boat is gone for the wave and returns at the next prep phase: full hull if
+/// the shipyard bill is paid, `UNPAID_RETURN_HP` otherwise.
+fn return_after_wave(
+    mut finished: MessageReader<WaveFinished>,
     mut commands: Commands,
     mut flotilla: ResMut<Flotilla>,
     mut treasury: ResMut<Treasury>,
     path: Res<RiverPath>,
 ) {
-    for intent in intents.read() {
-        if flotilla.at_sea {
+    if finished.read().count() == 0 || flotilla.at_sea {
+        return;
+    }
+    let bill = (flotilla.model.stats().nominal as f32 * REPAIR_BILL).round() as u32;
+    let fraction = if treasury.try_spend(bill) {
+        1.0
+    } else {
+        UNPAID_RETURN_HP
+    };
+    commission(&mut commands, &mut flotilla, &path, fraction);
+}
+
+/// Buys the next model while docked: full hull, full tubes, new behaviour.
+fn apply_upgrades(
+    mut intents: MessageReader<UpgradeBoat>,
+    mut flotilla: ResMut<Flotilla>,
+    mut treasury: ResMut<Treasury>,
+    path: Res<RiverPath>,
+    mut boats: Query<
+        (
+            &Station,
+            &mut Model,
+            &mut Health,
+            &mut Torpedoes,
+            &mut Sprite,
+        ),
+        With<UBoat>,
+    >,
+) {
+    for _ in intents.read() {
+        let Ok((station, mut model, mut health, mut torpedoes, mut sprite)) = boats.single_mut()
+        else {
+            continue;
+        };
+        let Some(next) = flotilla.model.next() else {
+            continue;
+        };
+        if !station.is_docked(&path) || !treasury.try_spend(next.stats().price) {
             continue;
         }
-        if !intent.free && !treasury.try_spend(flotilla.replacement_cost) {
-            continue;
-        }
-
-        let rank = rank_for(flotilla.kills);
-        flotilla.at_sea = true;
-        let mut tube = Timer::from_seconds(UBOAT_SALVO_SPACING, TimerMode::Once);
-        tube.set_elapsed(tube.duration());
-        let mut gun = Timer::from_seconds(DECK_GUN_RELOAD, TimerMode::Once);
-        gun.set_elapsed(gun.duration());
-
-        commands.spawn((
-            Name::new("U-96"),
-            UBoat,
-            Health::new(UBOAT_HEALTH),
-            Trim::Surfaced,
-            Heading(-path.tangent_at(path.length())),
-            DeckGun { reload: gun },
-            Torpedoes {
-                loaded: rank.torpedoes,
-                tube,
-                rearm: Timer::from_seconds(UBOAT_REARM_SECONDS, TimerMode::Repeating),
-            },
-            Station {
-                along: path.length(),
-                goal: path.length(),
-            },
-            Sprite {
-                color: Color::srgb(0.34, 0.38, 0.42),
-                custom_size: Some(Vec2::new(12.0, UBOAT_LENGTH)),
-                ..default()
-            },
-            Transform::from_translation(path.bunker_point().extend(Z_UBOAT)),
-            DespawnOnExit(Screen::Gameplay),
-        ));
+        flotilla.model = next;
+        model.0 = next;
+        *health = Health::new(next.stats().hp);
+        torpedoes.loaded = next.stats().tubes;
+        *sprite = sprite_for(next);
     }
 }
 
@@ -207,11 +273,11 @@ fn apply_move_intents(
 /// Surfacing is refused while a medium or heavier ship is directly above.
 fn apply_trim_intents(
     mut intents: MessageReader<ToggleTrim>,
-    mut boats: Query<(&Transform, &mut Trim), With<UBoat>>,
+    mut boats: Query<(&Transform, &Model, &mut Trim), With<UBoat>>,
     ships: Query<(&Transform, &EnemyType), With<Enemy>>,
 ) {
     for _ in intents.read() {
-        for (transform, mut trim) in &mut boats {
+        for (transform, model, mut trim) in &mut boats {
             let surfacing = matches!(*trim, Trim::Submerged | Trim::Submerging(_));
             let blocked = ships.iter().any(|(ship, kind)| {
                 kind.0.stats().class != SizeClass::Light && overlaps(transform, ship, kind)
@@ -219,7 +285,7 @@ fn apply_trim_intents(
             if surfacing && blocked {
                 continue;
             }
-            *trim = trim.toggled();
+            *trim = trim.toggled(model.0.stats().dive_seconds);
         }
     }
 }
@@ -238,6 +304,7 @@ fn navigate(
     mut boats: Query<
         (
             &mut Transform,
+            &Model,
             &mut Station,
             &mut Heading,
             &mut Trim,
@@ -248,7 +315,7 @@ fn navigate(
 ) {
     let step = time.delta_secs();
 
-    for (mut transform, mut station, mut heading, mut trim, mut sprite) in &mut boats {
+    for (mut transform, model, mut station, mut heading, mut trim, mut sprite) in &mut boats {
         match &mut *trim {
             Trim::Submerging(t) => {
                 if t.tick(time.delta()).just_finished() {
@@ -270,8 +337,8 @@ fn navigate(
         };
 
         let speed = match *trim {
-            Trim::Surfaced => UBOAT_SPEED,
-            _ => UBOAT_SPEED * UBOAT_SUBMERGED_SPEED_FACTOR,
+            Trim::Surfaced => model.0.stats().speed,
+            _ => model.0.stats().speed * UBOAT_SUBMERGED_SPEED_FACTOR,
         };
 
         // Stop, turn on the spot, then move: the tangent is sampled slightly ahead so a
@@ -294,15 +361,20 @@ fn navigate(
     }
 }
 
-fn rearm(
+/// Docked: torpedoes resupply one per `UBOAT_REARM_SECONDS`, the hull repairs for free.
+fn dock(
     time: Res<Time>,
     path: Res<RiverPath>,
-    flotilla: Res<Flotilla>,
-    mut boats: Query<(&Station, &mut Torpedoes), With<UBoat>>,
+    mut boats: Query<(&Station, &Model, &mut Torpedoes, &mut Health), With<UBoat>>,
 ) {
-    for (station, mut torpedoes) in &mut boats {
-        let capacity = rank_for(flotilla.kills).torpedoes;
-        if !station.is_docked(&path) || torpedoes.loaded >= capacity {
+    for (station, model, mut torpedoes, mut health) in &mut boats {
+        if !station.is_docked(&path) {
+            torpedoes.rearm.reset();
+            continue;
+        }
+        health.current = (health.current + health.max * DOCK_REPAIR_PER_SECOND * time.delta_secs())
+            .min(health.max);
+        if torpedoes.loaded >= model.0.stats().tubes {
             torpedoes.rearm.reset();
             continue;
         }
@@ -318,14 +390,22 @@ fn fire_torpedoes(
     time: Res<Time>,
     path: Res<RiverPath>,
     mut commands: Commands,
-    flotilla: Res<Flotilla>,
     mut intents: MessageReader<FireTorpedo>,
-    mut boats: Query<(&Transform, &Station, &Heading, &Trim, &mut Torpedoes), With<UBoat>>,
+    mut boats: Query<
+        (
+            &Transform,
+            &Model,
+            &Station,
+            &Heading,
+            &Trim,
+            &mut Torpedoes,
+        ),
+        With<UBoat>,
+    >,
 ) {
-    let rank = rank_for(flotilla.kills);
     let requested = intents.read().count() > 0;
 
-    for (transform, station, heading, trim, mut torpedoes) in &mut boats {
+    for (transform, model, station, heading, trim, mut torpedoes) in &mut boats {
         torpedoes.tube.tick(time.delta());
         if !requested || !trim.can_fire() || torpedoes.loaded == 0 || !torpedoes.tube.is_finished()
         {
@@ -347,7 +427,7 @@ fn fire_torpedoes(
         commands.spawn(torpedo_bundle(
             transform.translation.truncate(),
             axis,
-            rank.damage,
+            model.0.stats().torpedo_damage,
             TORPEDO_SPEED,
             TORPEDO_RUN,
         ));
@@ -435,21 +515,8 @@ fn collide_with_ships(
     }
 }
 
-fn on_kill_credit(
-    sunk: On<Sunk>,
-    enemies: Query<&crate::game::combat::LastHitBy>,
-    mut flotilla: ResMut<Flotilla>,
-) {
-    if let Ok(last) = enemies.get(sunk.entity) {
-        if last.0 == Weapon::Torpedo {
-            flotilla.kills += 1;
-        }
-    }
-}
-
 fn on_boat_lost(sunk: On<Sunk>, boats: Query<(), With<UBoat>>, mut flotilla: ResMut<Flotilla>) {
     if boats.get(sunk.entity).is_ok() {
         flotilla.at_sea = false;
-        flotilla.kills = 0;
     }
 }

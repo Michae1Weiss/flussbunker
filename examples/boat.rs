@@ -6,7 +6,7 @@ use flussbunker::balance::EnemyKind;
 use flussbunker::game::enemy::{enemy_bundle, shelling_bundle};
 use flussbunker::game::map::RiverPath;
 use flussbunker::game::{
-    combat, destruction, economy, enemy, input, map, projectile, radial, uboat,
+    combat, destruction, economy, enemy, input, map, projectile, radial, uboat, wave,
 };
 use flussbunker::harness;
 
@@ -21,6 +21,7 @@ fn main() -> AppExit {
             enemy::plugin,
             projectile::plugin,
             uboat::plugin,
+            wave::plugin,
             economy::plugin,
             radial::plugin,
             input::plugin,

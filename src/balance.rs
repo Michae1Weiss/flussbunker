@@ -17,7 +17,9 @@ pub const Z_PROJECTILE: f32 = 30.0;
 pub const Z_DEBRIS: f32 = 40.0;
 pub const Z_UI: f32 = 50.0;
 
-pub const STARTING_MARKS: u32 = 170;
+pub const STARTING_MARKS: u32 = 0;
+/// RM paid at the end of every wave, kills or not.
+pub const WAVE_CLEAR_BONUS: u32 = 30;
 pub const STARTING_INTEGRITY: u32 = 20;
 
 /// Three roles, `TOWER_TIERS` tiers each; `stats(tier)` describes one tier.
@@ -260,13 +262,86 @@ impl EnemyKind {
     }
 }
 
-pub const UBOAT_REPLACEMENT_COST: u32 = 220;
-pub const UBOAT_HEALTH: f32 = 130.0;
 /// Sprite length in world units; also the collision reach with ships.
 pub const UBOAT_LENGTH: f32 = 30.0;
-pub const UBOAT_SPEED: f32 = 190.0;
 pub const UBOAT_SUBMERGED_SPEED_FACTOR: f32 = 0.7;
-pub const UBOAT_TRIM_SECONDS: f32 = 1.4;
+/// Fraction of the boat's nominal value billed when it returns after sinking.
+pub const REPAIR_BILL: f32 = 0.3;
+/// HP fraction the boat returns with when the bill cannot be paid.
+pub const UNPAID_RETURN_HP: f32 = 0.5;
+/// Max-HP fraction repaired per second while docked.
+pub const DOCK_REPAIR_PER_SECOND: f32 = 0.1;
+
+/// Three linear models, bought at the docked boat; each changes behaviour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BoatModel {
+    ViiA,
+    ViiC,
+    IxC,
+}
+
+pub struct BoatStats {
+    pub name: &'static str,
+    /// RM to buy this model from the previous one.
+    pub price: u32,
+    /// Value the repair bill is based on.
+    pub nominal: u32,
+    /// First wave index (0-based) at which it can be bought.
+    pub unlock_wave: usize,
+    pub hp: f32,
+    pub tubes: u8,
+    pub torpedo_damage: f32,
+    pub speed: f32,
+    pub dive_seconds: f32,
+}
+
+impl BoatModel {
+    pub const fn stats(self) -> BoatStats {
+        match self {
+            BoatModel::ViiA => BoatStats {
+                name: "Typ VIIA",
+                price: 0,
+                nominal: 300,
+                unlock_wave: 0,
+                hp: 130.0,
+                tubes: 4,
+                torpedo_damage: 130.0,
+                speed: 190.0,
+                dive_seconds: 1.4,
+            },
+            BoatModel::ViiC => BoatStats {
+                name: "Typ VIIC",
+                price: 500,
+                nominal: 800,
+                unlock_wave: 3,
+                hp: 165.0,
+                tubes: 6,
+                torpedo_damage: 150.0,
+                speed: 195.0,
+                dive_seconds: 1.1,
+            },
+            BoatModel::IxC => BoatStats {
+                name: "Typ IXC",
+                price: 900,
+                nominal: 1700,
+                unlock_wave: 7,
+                hp: 220.0,
+                tubes: 8,
+                torpedo_damage: 150.0,
+                speed: 170.0,
+                dive_seconds: 1.8,
+            },
+        }
+    }
+
+    pub const fn next(self) -> Option<BoatModel> {
+        match self {
+            BoatModel::ViiA => Some(BoatModel::ViiC),
+            BoatModel::ViiC => Some(BoatModel::IxC),
+            BoatModel::IxC => None,
+        }
+    }
+}
 /// Radians per second; 180 degrees in about 0.8 s.
 pub const UBOAT_TURN_RATE: f32 = 4.0;
 /// The boat moves only once its bow is within this many radians of the travel direction.
@@ -292,53 +367,6 @@ pub const UBOAT_REARM_SECONDS: f32 = 1.6;
 /// Must be shorter than the longest straight of the river (`map::tests`).
 pub const TORPEDO_RUN: f32 = 9.0 * TILE_SIZE;
 pub const TORPEDO_SPEED: f32 = 340.0;
-
-pub struct Rank {
-    pub name: &'static str,
-    pub kills_required: u32,
-    pub torpedoes: u8,
-    pub damage: f32,
-    pub reload: f32,
-}
-
-pub const RANKS: &[Rank] = &[
-    Rank {
-        name: "Neuling",
-        kills_required: 0,
-        torpedoes: 4,
-        damage: 130.0,
-        reload: 2.2,
-    },
-    Rank {
-        name: "Erfahren",
-        kills_required: 8,
-        torpedoes: 5,
-        damage: 140.0,
-        reload: 2.0,
-    },
-    Rank {
-        name: "Veteran",
-        kills_required: 22,
-        torpedoes: 6,
-        damage: 150.0,
-        reload: 1.8,
-    },
-    Rank {
-        name: "Ritterkreuz",
-        kills_required: 45,
-        torpedoes: 7,
-        damage: 150.0,
-        reload: 1.5,
-    },
-];
-
-pub fn rank_for(kills: u32) -> &'static Rank {
-    RANKS
-        .iter()
-        .rev()
-        .find(|r| kills >= r.kills_required)
-        .unwrap_or(&RANKS[0])
-}
 
 pub struct Group {
     pub kind: EnemyKind,

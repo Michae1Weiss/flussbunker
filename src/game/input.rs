@@ -5,10 +5,11 @@
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
-use crate::balance::{TowerKind, BUILD_SPOT_RADIUS, SELL_HOLD_SECONDS};
+use crate::balance::{TowerKind, BUILD_SPOT_RADIUS, SELL_HOLD_SECONDS, UBOAT_LENGTH};
 use crate::game::map::{BuildSpot, RiverPath};
 use crate::game::radial::{Action, CloseMenu, Menu, OpenMenu, Target};
 use crate::game::tower::Occupied;
+use crate::game::uboat::{Station, UBoat};
 use crate::game_plugin::Frame;
 
 pub fn plugin(app: &mut App) {
@@ -20,7 +21,7 @@ pub fn plugin(app: &mut App) {
         .add_message::<MoveUBoat>()
         .add_message::<ToggleTrim>()
         .add_message::<FireTorpedo>()
-        .add_message::<CommissionUBoat>()
+        .add_message::<UpgradeBoat>()
         .add_systems(Update, read_intents.in_set(Frame::Input))
         .add_systems(Update, draw_hover.in_set(Frame::Present));
 }
@@ -66,10 +67,9 @@ pub struct ToggleTrim;
 #[derive(Message)]
 pub struct FireTorpedo;
 
+/// Buy the next boat model; the boat must be docked.
 #[derive(Message)]
-pub struct CommissionUBoat {
-    pub free: bool,
-}
+pub struct UpgradeBoat;
 
 #[derive(SystemParam)]
 struct Intents<'w> {
@@ -82,7 +82,7 @@ struct Intents<'w> {
     move_boat: MessageWriter<'w, MoveUBoat>,
     trim: MessageWriter<'w, ToggleTrim>,
     fire: MessageWriter<'w, FireTorpedo>,
-    commission: MessageWriter<'w, CommissionUBoat>,
+    upgrade_boat: MessageWriter<'w, UpgradeBoat>,
 }
 
 fn read_intents(
@@ -93,6 +93,7 @@ fn read_intents(
     menu: Res<Menu>,
     mut hold: ResMut<SellHold>,
     spots: Query<(Entity, &Transform, Option<&Occupied>), With<BuildSpot>>,
+    boats: Query<(Entity, &Transform, &Station), With<UBoat>>,
     camera: Single<(&Camera, &GlobalTransform)>,
     window: Single<&Window>,
     mut intents: Intents,
@@ -102,9 +103,6 @@ fn read_intents(
     }
     if keys.pressed(KeyCode::Space) {
         intents.fire.write(FireTorpedo);
-    }
-    if keys.just_pressed(KeyCode::KeyN) {
-        intents.commission.write(CommissionUBoat { free: false });
     }
     if keys.just_pressed(KeyCode::Escape) {
         intents.close_menu.write(CloseMenu);
@@ -116,7 +114,7 @@ fn read_intents(
         let hit = cursor.and_then(|c| menu.hit(c)).map(|e| e.action);
         let tower = match open.target {
             Target::Turret { tower, .. } => Some(tower),
-            Target::Spot(_) => None,
+            Target::Spot(_) | Target::Boat(_) => None,
         };
 
         // Holding on the sell entry fills the ring; leaving it or releasing cancels.
@@ -145,6 +143,10 @@ fn read_intents(
                 intents.upgrade.write(UpgradeTower { tower });
                 intents.close_menu.write(CloseMenu);
             }
+            (Some(Action::UpgradeBoat), _, _) => {
+                intents.upgrade_boat.write(UpgradeBoat);
+                intents.close_menu.write(CloseMenu);
+            }
             (Some(Action::Targeting), _, Some(tower)) => {
                 intents.cycle.write(CycleTargeting { tower });
             }
@@ -163,7 +165,15 @@ fn read_intents(
         return;
     };
 
-    if let Some((spot, transform, occupied)) = spot_at(world, spots.iter()) {
+    let docked_boat = boats.iter().find(|(_, t, station)| {
+        station.is_docked(&path) && t.translation.truncate().distance(world) <= UBOAT_LENGTH
+    });
+    if let Some((boat, transform, _)) = docked_boat {
+        intents.open_menu.write(OpenMenu {
+            target: Target::Boat(boat),
+            anchor: transform.translation.truncate(),
+        });
+    } else if let Some((spot, transform, occupied)) = spot_at(world, spots.iter()) {
         let target = match occupied {
             Some(occupied) => Target::Turret {
                 spot,

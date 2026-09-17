@@ -3,7 +3,7 @@
 
 use bevy::prelude::*;
 
-use crate::balance::{rank_for, UBOAT_REPLACEMENT_COST, WAVES};
+use crate::balance::WAVES;
 use crate::game::bunker::Integrity;
 use crate::game::combat::Health;
 use crate::game::economy::Treasury;
@@ -86,24 +86,19 @@ fn update_boat_panel(
     flotilla: Res<Flotilla>,
     boats: Query<(&Health, &Torpedoes, &Trim), With<UBoat>>,
 ) {
-    let rank = rank_for(flotilla.kills);
-
+    let stats = flotilla.model.stats();
     let Ok((health, torpedoes, trim)) = boats.single() else {
-        panel.0 = format!(
-            "U-96 VERLOREN    [N] Neubau {} RM    (Rang und Abschuesse sind weg)",
-            UBOAT_REPLACEMENT_COST
-        );
+        panel.0 = format!("{} gesunken - kehrt nach der Welle zurueck", stats.name);
         return;
     };
 
-    let pips: String = (0..rank.torpedoes)
+    let pips: String = (0..stats.tubes)
         .map(|i| if i < torpedoes.loaded { '|' } else { '.' })
         .collect();
 
     panel.0 = format!(
-        "U-96  {} ({} Abschuesse)   Torpedos [{}]   Rumpf {:.0}%   {}   [Rechtsklick] tauchen  [Space] Torpedo",
-        rank.name,
-        flotilla.kills,
+        "{}   Torpedos [{}]   Rumpf {:.0}%   {}   [Rechtsklick] tauchen  [Space] Torpedo",
+        stats.name,
         pips,
         health.fraction() * 100.0,
         trim.label(),

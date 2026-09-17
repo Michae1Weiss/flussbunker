@@ -10,6 +10,8 @@ use crate::balance::{
 use crate::game::economy::Treasury;
 use crate::game::input::{cursor_world, SellHold};
 use crate::game::tower::{Investment, Targeting, Tier, TowerType};
+use crate::game::uboat::Flotilla;
+use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
 use crate::screens::Screen;
 
@@ -31,6 +33,7 @@ pub fn plugin(app: &mut App) {
 pub enum Target {
     Spot(Entity),
     Turret { spot: Entity, tower: Entity },
+    Boat(Entity),
 }
 
 #[derive(Message)]
@@ -49,6 +52,7 @@ pub enum Action {
     Upgrade,
     Sell,
     Targeting,
+    UpgradeBoat,
 }
 
 pub struct Entry {
@@ -114,6 +118,7 @@ fn open(mut requests: MessageReader<OpenMenu>, mut menu: ResMut<Menu>, mut comma
     let actions: Vec<Action> = match request.target {
         Target::Spot(_) => TowerKind::ALL.iter().map(|&k| Action::Build(k)).collect(),
         Target::Turret { .. } => vec![Action::Upgrade, Action::Sell, Action::Targeting],
+        Target::Boat(_) => vec![Action::UpgradeBoat],
     };
     let entries = actions
         .iter()
@@ -155,6 +160,8 @@ fn open(mut requests: MessageReader<OpenMenu>, mut menu: ResMut<Menu>, mut comma
 fn refresh(
     mut menu: ResMut<Menu>,
     treasury: Res<Treasury>,
+    flotilla: Res<Flotilla>,
+    wave: Option<Res<WaveState>>,
     towers: Query<(&TowerType, &Tier, &Investment, &Targeting)>,
     mut labels: Query<(&mut Text2d, &mut TextColor)>,
 ) {
@@ -163,8 +170,9 @@ fn refresh(
     };
     let turret = match open.target {
         Target::Turret { tower, .. } => towers.get(tower).ok(),
-        Target::Spot(_) => None,
+        Target::Spot(_) | Target::Boat(_) => None,
     };
+    let wave_index = wave.map_or(usize::MAX, |w| w.index);
 
     for entry in &mut open.entries {
         let (text, enabled) = match (entry.action, turret) {
@@ -194,6 +202,19 @@ fn refresh(
             (Action::Targeting, Some((_, _, _, targeting))) => {
                 (format!("Ziel:\n{}", targeting.label()), true)
             }
+            (Action::UpgradeBoat, _) => match flotilla.model.next() {
+                Some(next) => {
+                    let stats = next.stats();
+                    let unlocked = wave_index >= stats.unlock_wave;
+                    let text = if unlocked {
+                        format!("{}\n{} RM", stats.name, stats.price)
+                    } else {
+                        format!("{}\nab Welle {}", stats.name, stats.unlock_wave + 1)
+                    };
+                    (text, unlocked && treasury.marks >= stats.price)
+                }
+                None => ("Bestes Boot".to_string(), false),
+            },
             (_, None) => (String::new(), false),
         };
         entry.enabled = enabled;

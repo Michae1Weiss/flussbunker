@@ -36,7 +36,7 @@ fn spawn_title(mut commands: Commands) {
                 [0.66, 0.70, 0.74]
             ),
             line(
-                "Rechtsklick  tauchen / auftauchen     Space  Torpedo (halten: Salve)",
+                "Rechtsklick  tauchen / auftauchen     Space  Torpedo (halten: Salve)     Klick aufs Boot am Bunker: Werft",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),

@@ -1,10 +1,12 @@
 //! Wave pacing: spawns groups on their schedule, ends a wave when the river is
-//! empty, declares victory after the last one. Sole writer of `WaveState`.
+//! empty, declares victory after the last one. Sole writer of `WaveState`; writes
+//! `WaveFinished`.
 
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
-use crate::balance::{EnemyKind, WAVES};
+use crate::balance::{EnemyKind, WAVES, WAVE_CLEAR_BONUS};
+use crate::game::economy::Treasury;
 use crate::game::enemy::{enemy_bundle, shelling_bundle, Enemy};
 use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
@@ -12,6 +14,7 @@ use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<WaveState>()
+        .add_message::<WaveFinished>()
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(
             Update,
@@ -23,6 +26,10 @@ pub fn plugin(app: &mut App) {
             (spawn_boats, finish_wave).chain().in_set(Sim::Spawn),
         );
 }
+
+/// The river is empty and the prep phase begins.
+#[derive(Message)]
+pub struct WaveFinished;
 
 #[derive(Resource, Debug)]
 pub struct WaveState {
@@ -103,6 +110,8 @@ fn spawn_one(commands: &mut Commands, kind: EnemyKind, at: Vec2) {
 fn finish_wave(
     mut wave: ResMut<WaveState>,
     mut next: ResMut<NextState<Screen>>,
+    mut treasury: ResMut<Treasury>,
+    mut finished: MessageWriter<WaveFinished>,
     enemies: Query<(), With<Enemy>>,
 ) {
     if !wave.running {
@@ -121,6 +130,8 @@ fn finish_wave(
 
     wave.running = false;
     wave.index += 1;
+    treasury.marks += WAVE_CLEAR_BONUS;
+    finished.write(WaveFinished);
     if wave.index >= WAVES.len() {
         next.set(Screen::Victory);
     }

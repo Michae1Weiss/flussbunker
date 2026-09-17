@@ -13,7 +13,7 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Title), spawn_title)
         .add_systems(
             Update,
-            start_run.run_if(in_state(Screen::Title).and(input_just_pressed(KeyCode::Space))),
+            start_run.run_if(in_state(Screen::Title).and_then(input_just_pressed(KeyCode::Space))),
         );
 }
 

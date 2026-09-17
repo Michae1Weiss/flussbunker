@@ -25,7 +25,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(
             Update,
-            start_wave.run_if(in_state(Screen::Gameplay).and(input_just_pressed(KeyCode::Space))),
+            start_wave.run_if(in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Space))),
         )
         .add_systems(
             FixedUpdate,

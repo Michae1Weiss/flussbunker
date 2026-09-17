@@ -15,8 +15,8 @@ pub(super) fn plugin(app: &mut App) {
         .add_systems(
             Update,
             back_to_title.run_if(
-                (in_state(Screen::Victory).or(in_state(Screen::Defeat)))
-                    .and(input_just_pressed(KeyCode::Space)),
+                (in_state(Screen::Victory).or_else(in_state(Screen::Defeat)))
+                    .and_then(input_just_pressed(KeyCode::Space)),
             ),
         );
 }

@@ -11,7 +11,7 @@ use crate::game::uboat::{Trim, UBoat};
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.add_message::<EnemyReachedBunker>().add_systems(
         FixedUpdate,
         (

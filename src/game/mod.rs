@@ -15,7 +15,7 @@ pub mod tower;
 pub mod uboat;
 pub mod wave;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.add_plugins((
         map::plugin,
         combat::plugin,

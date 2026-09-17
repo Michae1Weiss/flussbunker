@@ -8,7 +8,7 @@ use crate::game::map::RiverPath;
 use crate::game::tower::Tower;
 use crate::game_plugin::Frame;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.init_resource::<SelectedTool>()
         .add_message::<BuildTower>()
         .add_message::<MoveUBoat>()

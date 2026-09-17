@@ -9,7 +9,7 @@ use crate::balance::{
 };
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     let points = CENTRELINE_TILES
         .iter()
         .map(|&(x, y)| tile_to_world(x, y))

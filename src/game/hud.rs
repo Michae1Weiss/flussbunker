@@ -14,7 +14,7 @@ use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Gameplay), spawn_hud)
         .add_systems(
             Update,

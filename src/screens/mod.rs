@@ -14,7 +14,7 @@ pub enum Screen {
     Defeat,
 }
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.init_state::<Screen>()
         .add_plugins((title::plugin, game_over::plugin));
 }

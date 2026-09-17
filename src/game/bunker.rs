@@ -7,7 +7,7 @@ use crate::game::enemy::EnemyReachedBunker;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.init_resource::<Integrity>()
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(FixedUpdate, take_breaches.in_set(Sim::Death));

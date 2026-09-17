@@ -5,7 +5,7 @@ use bevy::prelude::*;
 
 use crate::game_plugin::Sim;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.add_message::<Damage>().add_systems(
         FixedUpdate,
         (
@@ -41,6 +41,8 @@ pub enum DamageKind {
     Shell,
     /// Ignores armour.
     Torpedo,
+    /// Ignores armour; collisions with the U-boat.
+    Ram,
 }
 
 #[derive(Message, Debug)]
@@ -77,7 +79,7 @@ fn apply_damage(
                 let armor = armor.map_or(0.0, |a| a.0);
                 (hit.amount - armor).max(hit.amount * 0.1)
             }
-            DamageKind::Torpedo => hit.amount,
+            DamageKind::Torpedo | DamageKind::Ram => hit.amount,
         };
 
         health.current -= effective;

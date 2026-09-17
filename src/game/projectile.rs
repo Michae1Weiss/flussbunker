@@ -13,7 +13,7 @@ const HIT_RADIUS: f32 = 7.0;
 /// Hulls within this distance of the run line are hit.
 const TORPEDO_BEAM: f32 = 24.0;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         (

@@ -7,7 +7,7 @@ use crate::game::combat::Sunk;
 use crate::game::enemy::Bounty;
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.init_resource::<Treasury>()
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_observer(award_bounty);

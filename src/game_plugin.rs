@@ -1,8 +1,8 @@
 //! Composition root: adds the feature plugins and declares system ordering once.
-
-use bevy::prelude::*;
+//! `harness` is the same core for `examples/`, starting straight in gameplay.
 
 use bevy::camera::ScalingMode;
+use bevy::prelude::*;
 
 use crate::balance::{MAP_HEIGHT_TILES, MAP_WIDTH_TILES, TILE_SIZE};
 use crate::{
@@ -33,34 +33,43 @@ pub enum Frame {
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ClearColor(Color::srgb(0.16, 0.20, 0.15)))
-            .insert_resource(Time::<Fixed>::from_hz(64.0))
-            .add_systems(Startup, spawn_camera);
-
-        app.configure_sets(
-            FixedUpdate,
-            (
-                Sim::Spawn,
-                Sim::Movement,
-                Sim::Targeting,
-                Sim::Damage,
-                Sim::Death,
-            )
-                .chain()
-                .run_if(in_state(Screen::Gameplay)),
-        );
-        app.configure_sets(
-            Update,
-            (Frame::Input, Frame::Present)
-                .chain()
-                .run_if(in_state(Screen::Gameplay)),
-        );
-
+        core(app);
         app.add_plugins((screens::plugin, game::plugin));
 
         #[cfg(feature = "dev")]
         app.add_plugins(crate::dev_tools::plugin);
     }
+}
+
+/// Core without screens: an example adds the feature plugins it wants to feel.
+pub fn harness(app: &mut App) {
+    core(app);
+    app.insert_state(Screen::Gameplay);
+}
+
+fn core(app: &mut App) {
+    app.insert_resource(ClearColor(Color::srgb(0.16, 0.20, 0.15)))
+        .insert_resource(Time::<Fixed>::from_hz(64.0))
+        .add_systems(Startup, spawn_camera);
+
+    app.configure_sets(
+        FixedUpdate,
+        (
+            Sim::Spawn,
+            Sim::Movement,
+            Sim::Targeting,
+            Sim::Damage,
+            Sim::Death,
+        )
+            .chain()
+            .run_if(in_state(Screen::Gameplay)),
+    );
+    app.configure_sets(
+        Update,
+        (Frame::Input, Frame::Present)
+            .chain()
+            .run_if(in_state(Screen::Gameplay)),
+    );
 }
 
 fn spawn_camera(mut commands: Commands) {

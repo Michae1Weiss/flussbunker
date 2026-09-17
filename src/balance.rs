@@ -93,8 +93,18 @@ pub enum EnemyKind {
     Monitor,
 }
 
+/// Drives ramming, death style and debris; see docs/design/enemies.md.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SizeClass {
+    Light,
+    Medium,
+    Heavy,
+    Capital,
+}
+
 pub struct EnemyStats {
     pub name: &'static str,
+    pub class: SizeClass,
     pub health: f32,
     pub armor: f32,
     pub speed: f32,
@@ -118,6 +128,7 @@ impl EnemyKind {
         match self {
             EnemyKind::MotorTorpedoBoat => EnemyStats {
                 name: "MTB",
+                class: SizeClass::Light,
                 health: 38.0,
                 armor: 0.0,
                 speed: 118.0,
@@ -129,6 +140,7 @@ impl EnemyKind {
             },
             EnemyKind::Corvette => EnemyStats {
                 name: "Korvette",
+                class: SizeClass::Medium,
                 health: 130.0,
                 armor: 3.0,
                 speed: 62.0,
@@ -140,6 +152,7 @@ impl EnemyKind {
             },
             EnemyKind::LandingCraft => EnemyStats {
                 name: "Landungsboot",
+                class: SizeClass::Medium,
                 health: 300.0,
                 armor: 1.0,
                 speed: 38.0,
@@ -151,6 +164,7 @@ impl EnemyKind {
             },
             EnemyKind::Destroyer => EnemyStats {
                 name: "Zerstoerer",
+                class: SizeClass::Heavy,
                 health: 380.0,
                 armor: 8.0,
                 speed: 50.0,
@@ -166,6 +180,7 @@ impl EnemyKind {
             },
             EnemyKind::Monitor => EnemyStats {
                 name: "Monitor",
+                class: SizeClass::Capital,
                 health: 1100.0,
                 armor: 12.0,
                 speed: 30.0,
@@ -185,6 +200,8 @@ impl EnemyKind {
 
 pub const UBOAT_REPLACEMENT_COST: u32 = 220;
 pub const UBOAT_HEALTH: f32 = 130.0;
+/// Sprite length in world units; also the collision reach with ships.
+pub const UBOAT_LENGTH: f32 = 30.0;
 pub const UBOAT_SPEED: f32 = 190.0;
 pub const UBOAT_SUBMERGED_SPEED_FACTOR: f32 = 0.7;
 pub const UBOAT_TRIM_SECONDS: f32 = 1.4;
@@ -194,6 +211,16 @@ pub const UBOAT_TURN_RATE: f32 = 4.0;
 pub const UBOAT_FIRE_ALIGNMENT: f32 = 10.0_f32.to_radians();
 /// Seconds between tubes while Space is held.
 pub const UBOAT_SALVO_SPACING: f32 = 0.3;
+pub const DECK_GUN_DAMAGE: f32 = 22.0;
+pub const DECK_GUN_RELOAD: f32 = 2.4;
+pub const DECK_GUN_RANGE: f32 = 2.4 * TILE_SIZE;
+pub const DECK_GUN_SHELL_SPEED: f32 = 700.0;
+/// Fraction of the boat's max HP lost when a light boat capsizes on it.
+pub const RAM_LIGHT_COST: f32 = 0.05;
+/// Fraction of the boat's max HP lost when a heavier ship rams through it.
+pub const RAM_HEAVY_COST: f32 = 0.40;
+/// World units the boat is shoved downstream by a heavier ship.
+pub const RAM_SHOVE: f32 = 1.0 * TILE_SIZE;
 /// Seconds per torpedo while docked.
 pub const UBOAT_REARM_SECONDS: f32 = 1.6;
 /// Must be shorter than the longest straight of the river (`map::tests`).

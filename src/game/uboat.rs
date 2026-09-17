@@ -1,23 +1,26 @@
-//! The player's U-boat: river movement, heading, dive state, torpedoes, rearming.
-//! Sole writer of `Flotilla`, `Trim`, `Heading`, `Torpedoes`, `Station`.
+//! The player's U-boat: river movement, heading, dive state, torpedoes, deck gun, ramming.
+//! Sole writer of `Flotilla`, `Trim`, `Heading`, `Torpedoes`, `Station`, `DeckGun`, `Rammed`.
 //! Rules: docs/design/uboat.md
 
 use bevy::prelude::*;
 
 use crate::balance::{
-    rank_for, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED, UBOAT_FIRE_ALIGNMENT, UBOAT_HEALTH,
-    UBOAT_REARM_SECONDS, UBOAT_REPLACEMENT_COST, UBOAT_SALVO_SPACING, UBOAT_SPEED,
-    UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TRIM_SECONDS, UBOAT_TURN_RATE, Z_UBOAT,
+    rank_for, SizeClass, DECK_GUN_DAMAGE, DECK_GUN_RANGE, DECK_GUN_RELOAD, DECK_GUN_SHELL_SPEED,
+    RAM_HEAVY_COST, RAM_LIGHT_COST, RAM_SHOVE, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED,
+    UBOAT_FIRE_ALIGNMENT, UBOAT_HEALTH, UBOAT_LENGTH, UBOAT_REARM_SECONDS, UBOAT_REPLACEMENT_COST,
+    UBOAT_SALVO_SPACING, UBOAT_SPEED, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TRIM_SECONDS,
+    UBOAT_TURN_RATE, Z_UBOAT,
 };
-use crate::game::combat::{DamageKind, Health, Sunk};
+use crate::game::combat::{Damage, DamageKind, Health, Sunk};
 use crate::game::economy::Treasury;
+use crate::game::enemy::{Enemy, EnemyType};
 use crate::game::input::{CommissionUBoat, FireTorpedo, MoveUBoat, ToggleTrim};
 use crate::game::map::RiverPath;
-use crate::game::projectile::torpedo_bundle;
+use crate::game::projectile::{shell_bundle, torpedo_bundle};
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.init_resource::<Flotilla>()
         .add_systems(
             OnEnter(Screen::Gameplay),
@@ -28,7 +31,7 @@ pub(super) fn plugin(app: &mut App) {
             (
                 (commission, apply_move_intents, apply_trim_intents).in_set(Sim::Spawn),
                 navigate.in_set(Sim::Movement),
-                (rearm, fire_torpedoes).in_set(Sim::Targeting),
+                (rearm, fire_torpedoes, fire_deck_gun, collide_with_ships).in_set(Sim::Targeting),
             ),
         )
         .add_observer(on_boat_lost)
@@ -103,6 +106,17 @@ impl Trim {
 #[derive(Component)]
 pub struct Heading(pub Vec2);
 
+/// Auto-fires at the nearest enemy in range while surfaced.
+#[derive(Component)]
+pub struct DeckGun {
+    /// Ready when finished; reset after each shot.
+    pub reload: Timer,
+}
+
+/// An enemy that has already collided with the boat. A ship rams once.
+#[derive(Component)]
+pub struct Rammed;
+
 #[derive(Component)]
 pub struct Torpedoes {
     pub loaded: u8,
@@ -149,6 +163,8 @@ fn commission(
         flotilla.at_sea = true;
         let mut tube = Timer::from_seconds(UBOAT_SALVO_SPACING, TimerMode::Once);
         tube.set_elapsed(tube.duration());
+        let mut gun = Timer::from_seconds(DECK_GUN_RELOAD, TimerMode::Once);
+        gun.set_elapsed(gun.duration());
 
         commands.spawn((
             Name::new("U-96"),
@@ -156,6 +172,7 @@ fn commission(
             Health::new(UBOAT_HEALTH),
             Trim::Surfaced,
             Heading(-path.tangent_at(path.length())),
+            DeckGun { reload: gun },
             Torpedoes {
                 loaded: rank.torpedoes,
                 tube,
@@ -167,7 +184,7 @@ fn commission(
             },
             Sprite {
                 color: Color::srgb(0.34, 0.38, 0.42),
-                custom_size: Some(Vec2::new(12.0, 30.0)),
+                custom_size: Some(Vec2::new(12.0, UBOAT_LENGTH)),
                 ..default()
             },
             Transform::from_translation(path.bunker_point().extend(Z_UBOAT)),
@@ -187,15 +204,32 @@ fn apply_move_intents(
     }
 }
 
+/// Surfacing is refused while a medium or heavier ship is directly above.
 fn apply_trim_intents(
     mut intents: MessageReader<ToggleTrim>,
-    mut boats: Query<&mut Trim, With<UBoat>>,
+    mut boats: Query<(&Transform, &mut Trim), With<UBoat>>,
+    ships: Query<(&Transform, &EnemyType), With<Enemy>>,
 ) {
     for _ in intents.read() {
-        for mut trim in &mut boats {
+        for (transform, mut trim) in &mut boats {
+            let surfacing = matches!(*trim, Trim::Submerged | Trim::Submerging(_));
+            let blocked = ships.iter().any(|(ship, kind)| {
+                kind.0.stats().class != SizeClass::Light && overlaps(transform, ship, kind)
+            });
+            if surfacing && blocked {
+                continue;
+            }
             *trim = trim.toggled();
         }
     }
+}
+
+fn overlaps(boat: &Transform, ship: &Transform, kind: &EnemyType) -> bool {
+    let reach = (kind.0.stats().size + UBOAT_LENGTH) * 0.5;
+    boat.translation
+        .truncate()
+        .distance_squared(ship.translation.truncate())
+        <= reach * reach
 }
 
 fn navigate(
@@ -312,6 +346,83 @@ fn fire_torpedoes(
             TORPEDO_SPEED,
             TORPEDO_RUN,
         ));
+    }
+}
+
+fn fire_deck_gun(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut boats: Query<(&Transform, &Trim, &mut DeckGun), With<UBoat>>,
+    enemies: Query<(Entity, &Transform), With<Enemy>>,
+) {
+    for (transform, trim, mut gun) in &mut boats {
+        gun.reload.tick(time.delta());
+        if !trim.can_fire() || !gun.reload.is_finished() {
+            continue;
+        }
+        let origin = transform.translation.truncate();
+        let target = enemies
+            .iter()
+            .map(|(entity, ship)| (entity, origin.distance_squared(ship.translation.truncate())))
+            .filter(|(_, distance)| *distance <= DECK_GUN_RANGE * DECK_GUN_RANGE)
+            .min_by(|a, b| a.1.total_cmp(&b.1));
+        let Some((entity, _)) = target else {
+            continue;
+        };
+        gun.reload.reset();
+        commands.spawn(shell_bundle(
+            origin,
+            entity,
+            DECK_GUN_DAMAGE,
+            DamageKind::Shell,
+            DECK_GUN_SHELL_SPEED,
+            0.0,
+        ));
+    }
+}
+
+/// Ships never stop: a light boat capsizes on a surfaced U-boat, a heavier ship
+/// damages and shoves it downstream. Each ship collides at most once.
+fn collide_with_ships(
+    mut commands: Commands,
+    path: Res<RiverPath>,
+    mut damage: MessageWriter<Damage>,
+    mut boats: Query<(Entity, &Transform, &Trim, &Health, &mut Station), With<UBoat>>,
+    ships: Query<(Entity, &Transform, &EnemyType, &Health), (With<Enemy>, Without<Rammed>)>,
+) {
+    for (boat, transform, trim, health, mut station) in &mut boats {
+        if !trim.is_hittable() {
+            continue;
+        }
+        for (ship, ship_transform, kind, ship_health) in &ships {
+            if !overlaps(transform, ship_transform, kind) {
+                continue;
+            }
+            commands.entity(ship).insert(Rammed);
+            let cost = match kind.0.stats().class {
+                SizeClass::Light => {
+                    damage.write(Damage {
+                        target: ship,
+                        amount: ship_health.max,
+                        kind: DamageKind::Ram,
+                    });
+                    RAM_LIGHT_COST
+                }
+                _ => {
+                    let at_rest = station.goal == station.along;
+                    station.along = (station.along + RAM_SHOVE).min(path.length());
+                    if at_rest {
+                        station.goal = station.along;
+                    }
+                    RAM_HEAVY_COST
+                }
+            };
+            damage.write(Damage {
+                target: boat,
+                amount: health.max * cost,
+                kind: DamageKind::Ram,
+            });
+        }
     }
 }
 

@@ -10,7 +10,7 @@ use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.init_resource::<WaveState>()
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(

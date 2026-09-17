@@ -5,6 +5,6 @@ pub mod balance;
 mod dev_tools;
 pub mod game;
 mod game_plugin;
-mod screens;
+pub mod screens;
 
-pub use game_plugin::GamePlugin;
+pub use game_plugin::{harness, GamePlugin};

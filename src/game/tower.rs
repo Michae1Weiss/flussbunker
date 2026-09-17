@@ -13,7 +13,7 @@ use crate::game::projectile::shell_bundle;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         (
@@ -40,11 +40,14 @@ pub struct Gun {
     pub projectile_speed: f32,
     /// Impact radius in world units; 0 = single target.
     pub splash: f32,
+    /// Ready when finished; reset after each shot.
     pub reload: Timer,
 }
 
 pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
     let stats = kind.stats();
+    let mut reload = Timer::from_seconds(stats.reload, TimerMode::Once);
+    reload.set_elapsed(reload.duration());
     (
         Name::new(stats.name),
         Tower,
@@ -55,7 +58,7 @@ pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
             kind: stats.damage_kind,
             projectile_speed: stats.projectile_speed,
             splash: stats.splash,
-            reload: Timer::from_seconds(stats.reload, TimerMode::Repeating),
+            reload,
         },
         Sprite {
             color: Color::srgb(stats.rgb[0], stats.rgb[1], stats.rgb[2]),
@@ -75,7 +78,8 @@ fn fire_at_leader(
     enemies: Query<(Entity, &Transform, &Along), With<Enemy>>,
 ) {
     for (tower_transform, range, mut gun) in &mut towers {
-        if !gun.reload.tick(time.delta()).just_finished() {
+        gun.reload.tick(time.delta());
+        if !gun.reload.is_finished() {
             continue;
         }
 
@@ -88,11 +92,10 @@ fn fire_at_leader(
             .max_by(|a, b| a.2 .0.total_cmp(&b.2 .0));
 
         let Some((entity, _, _)) = target else {
-            // Reset so the next enemy entering range is shot immediately.
-            gun.reload.reset();
             continue;
         };
 
+        gun.reload.reset();
         commands.spawn(shell_bundle(
             origin,
             entity,

@@ -60,6 +60,12 @@ game before any further code. Decisions, with reasons:
 | Scripted stopping destroyer | breaks the timetable rule; single solution; wrong move |
 | Extra "tiny" starter boat model | a fourth model and a forced purchase; the VIIA is the tiny boat |
 
+## Runs on record
+
+| Date | Who | Result | Numbers | Reading |
+|---|---|---|---|---|
+| 2026-09-17 | designer, first full greybox run | won | 11.8 min, integrity 20/20, 372 RM left, 82 torpedoes / 72 hits / 9 lost, turrets 2/2/2 + 8 upgrades + 2 sells, 180 kills incl. 17 chain and 6 ram, boat never sunk, VIIC bought mid-run | felt close because of the boat, not the bunker. No balance change before playtest 1; levers ready: economy target 50 %, +10 % enemy HP from wave 8 |
+
 ## Hypotheses to test
 
 | Hypothesis | Where | Kill criterion |

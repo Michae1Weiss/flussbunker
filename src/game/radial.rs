@@ -125,7 +125,7 @@ fn open(mut requests: MessageReader<OpenMenu>, mut menu: ResMut<Menu>, mut comma
                 .spawn((
                     Text2d::new(String::new()),
                     TextFont {
-                        font_size: FontSize::Px(13.0),
+                        font_size: FontSize::Px(16.0),
                         ..default()
                     },
                     TextLayout::new(Justify::Center, bevy::text::LineBreak::WordBoundary),

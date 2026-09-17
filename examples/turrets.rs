@@ -8,7 +8,6 @@ use flussbunker::game::enemy::enemy_bundle;
 use flussbunker::game::map::RiverPath;
 use flussbunker::game::{combat, economy, enemy, input, map, projectile, radial, tower, uboat};
 use flussbunker::harness;
-use flussbunker::screens::Screen;
 
 fn main() -> AppExit {
     App::new()
@@ -26,16 +25,19 @@ fn main() -> AppExit {
             input::plugin,
         ))
         .insert_resource(Stream(Timer::from_seconds(3.0, TimerMode::Repeating)))
-        .add_systems(OnEnter(Screen::Gameplay), fund)
-        .add_systems(Update, stream_ships)
+        .add_systems(Update, (fund, stream_ships))
         .run()
 }
 
 #[derive(Resource)]
 struct Stream(Timer);
 
-fn fund(mut treasury: ResMut<Treasury>) {
-    treasury.marks = 3000;
+/// Once, after every `OnEnter(Gameplay)` reset has run.
+fn fund(mut done: Local<bool>, mut treasury: ResMut<Treasury>) {
+    if !*done {
+        treasury.marks = 3000;
+        *done = true;
+    }
 }
 
 fn stream_ships(

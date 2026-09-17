@@ -39,8 +39,8 @@ pub const AP_ARMOUR_FACTOR: f32 = 0.5;
 /// Seconds the sell entry must be held.
 pub const SELL_HOLD_SECONDS: f32 = 0.5;
 /// World-unit distance of radial menu entries from the anchor, and their hit radius.
-pub const RADIAL_RADIUS: f32 = 1.5 * TILE_SIZE;
-pub const RADIAL_ENTRY_RADIUS: f32 = 0.55 * TILE_SIZE;
+pub const RADIAL_RADIUS: f32 = 1.9 * TILE_SIZE;
+pub const RADIAL_ENTRY_RADIUS: f32 = 0.8 * TILE_SIZE;
 
 pub struct TowerStats {
     pub name: &'static str,

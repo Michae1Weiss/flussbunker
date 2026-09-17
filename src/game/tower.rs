@@ -13,7 +13,7 @@ use crate::game::enemy::{Along, Enemy};
 use crate::game::input::{BuildTower, CycleTargeting, SellTower, UpgradeTower};
 use crate::game::map::BuildSpot;
 use crate::game::projectile::shell_bundle;
-use crate::game_plugin::Sim;
+use crate::game_plugin::{Frame, Sim};
 use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
@@ -30,7 +30,8 @@ pub fn plugin(app: &mut App) {
                 .in_set(Sim::Spawn),
             fire.in_set(Sim::Targeting),
         ),
-    );
+    )
+    .add_systems(Update, draw_construction.in_set(Frame::Present));
 }
 
 #[derive(Component)]
@@ -219,6 +220,17 @@ fn finish_construction(
             *sprite = sprite_for(kind.0, tier.0);
             commands.entity(entity).remove::<Constructing>();
         }
+    }
+}
+
+fn draw_construction(mut gizmos: Gizmos, sites: Query<(&Transform, &Constructing)>) {
+    for (transform, constructing) in &sites {
+        gizmos.arc_2d(
+            Isometry2d::from_translation(transform.translation.truncate()),
+            std::f32::consts::TAU * constructing.0.fraction(),
+            TILE_SIZE * 0.5,
+            Color::srgb(0.85, 0.85, 0.6),
+        );
     }
 }
 

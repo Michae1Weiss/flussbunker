@@ -43,7 +43,7 @@ use crate::game::combat::{DamageKind, Health, Sunk};
 use crate::game::economy::Treasury;
 use crate::game::enemy::Enemy;
 use crate::game::map::RiverPath;
-use crate::game::orders::{CommissionUBoat, MoveUBoat, ToggleTrim};
+use crate::game::input::{CommissionUBoat, MoveUBoat, ToggleTrim};
 use crate::game::projectile::torpedo_bundle;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -57,7 +57,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_systems(
             FixedUpdate,
             (
-                (commission, obey_move_orders, obey_trim_orders).in_set(Sim::Spawn),
+                (commission, apply_move_intents, apply_trim_intents).in_set(Sim::Spawn),
                 navigate.in_set(Sim::Movement),
                 (rearm, fire_torpedoes).in_set(Sim::Targeting),
             ),
@@ -191,7 +191,7 @@ fn commission(
     }
 }
 
-fn obey_move_orders(
+fn apply_move_intents(
     mut orders: MessageReader<MoveUBoat>,
     mut boats: Query<&mut Station, With<UBoat>>,
 ) {
@@ -202,7 +202,7 @@ fn obey_move_orders(
     }
 }
 
-fn obey_trim_orders(
+fn apply_trim_intents(
     mut orders: MessageReader<ToggleTrim>,
     mut boats: Query<&mut Trim, With<UBoat>>,
 ) {

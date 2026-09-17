@@ -16,8 +16,8 @@ pub mod combat;
 pub mod economy;
 pub mod enemy;
 pub mod hud;
+pub mod input;
 pub mod map;
-pub mod orders;
 pub mod projectile;
 pub mod tower;
 pub mod uboat;
@@ -34,7 +34,7 @@ pub(super) fn plugin(app: &mut App) {
         wave::plugin,       // pacing: what spawns, when, and who won
         economy::plugin,    // marks and bounties
         bunker::plugin,     // integrity, i.e. lives
-        orders::plugin,     // player intent: what the mouse and keys mean
+        input::plugin,
         hud::plugin,
     ));
 }

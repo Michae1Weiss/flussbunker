@@ -32,7 +32,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_message::<MoveUBoat>()
         .add_message::<ToggleTrim>()
         .add_message::<CommissionUBoat>()
-        .add_systems(Update, (select_tool, issue_orders).chain().in_set(Frame::Input))
+        .add_systems(Update, (select_tool, read_intents).chain().in_set(Frame::Input))
         .add_systems(Update, draw_hover.in_set(Frame::Present));
 }
 
@@ -74,7 +74,7 @@ fn select_tool(keys: Res<ButtonInput<KeyCode>>, mut tool: ResMut<SelectedTool>) 
     }
 }
 
-fn issue_orders(
+fn read_intents(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     tool: Res<SelectedTool>,

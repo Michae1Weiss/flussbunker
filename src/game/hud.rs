@@ -22,7 +22,7 @@ use crate::game::bunker::Integrity;
 use crate::game::combat::Health;
 use crate::game::economy::Treasury;
 use crate::game::enemy::Enemy;
-use crate::game::orders::SelectedTool;
+use crate::game::input::SelectedTool;
 use crate::game::uboat::{Flotilla, Torpedoes, Trim, UBoat};
 use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;

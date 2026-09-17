@@ -11,7 +11,7 @@ use bevy::prelude::*;
 use crate::balance::{TowerKind, Z_TOWER};
 use crate::game::economy::Treasury;
 use crate::game::map::{MapGrid, Tile};
-use crate::game::orders::BuildTower;
+use crate::game::input::BuildTower;
 use crate::game::combat::DamageKind;
 use crate::game::enemy::{Enemy, PathProgress};
 use crate::game::projectile::shell_bundle;

@@ -14,7 +14,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_systems(OnEnter(Screen::Gameplay), spawn_tiles);
 }
 
-/// `S` sea spawn · `~` river · `.` land · `B` bunker.
+/// `S` sea spawn, `~` river, `.` land, `B` bunker.
 /// The river must be one unbranched, 4-connected channel from `S` to `B`.
 const MAP: &str = "\
 S~~~~.......

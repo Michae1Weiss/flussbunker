@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Exact pin: a Bevy minor bump is a migration and a separate decision.
+
 bevy = "=0.19.1"
 
 [features]

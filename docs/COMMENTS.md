@@ -86,12 +86,15 @@ pub enum Trim { .. }
 pub const STARTING_MARKS: u32 = 0;
 ```
 
-Eight lines on why the kill tally lives in a resource, not on the entity →
+Eight lines on why the tally lives in a resource, not on the entity →
 
 ```rust
-/// Outlives the boat entity on purpose; reset by `on_boat_lost`.
+/// Sole writer: `uboat`. `at_sea` is cleared by the `Sunk` observer, before the entity is gone.
 pub struct Flotilla { .. }
 ```
+
+("Outlives the entity on purpose" would fail §1: it asserts intent without stating the
+invariant. The observer ordering *is* the non-obvious fact.)
 
 ## 7. Names
 

@@ -69,5 +69,5 @@ buy hand-drawn art. The roadmap respects that.
 | `docs/DECISIONS.md` | why, rejected ideas, hypotheses to test |
 | `docs/ROADMAP.md` | greybox milestones with kill criteria |
 | `docs/PLAYTEST.md` | protocol, telemetry, success thresholds |
-| `docs/BACKLOG.md` | ideas and known bugs, until they become GitHub issues |
+| GitHub Issues | bugs, chores and ideas; milestones mirror the roadmap |
 | `CONTRIBUTING.md`, `docs/COMMENTS.md` | conventions |

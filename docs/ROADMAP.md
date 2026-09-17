@@ -7,7 +7,7 @@ art) until M8.
 
 | # | Milestone | Deliverable | Hypothesis | Kill criterion | ~h |
 |---|---|---|---|---|---|
-| 0 | Repo hygiene | crate renamed, `main`, GitHub remote, issues from `BACKLOG.md`, project board, PoC comments stripped per `COMMENTS.md` | – | – | 6 |
+| 0 | Repo hygiene | crate renamed, project board, PoC comments stripped per `COMMENTS.md` (issues, labels and milestones exist) | – | – | 6 |
 | 1 | Boat on the river | river with straights and bends, centreline movement, heading rule, dive, torpedo lanes, deck gun, ramming vs dummy ships | "position is the aim" is fun with rectangles | you do not reposition the boat voluntarily | 25 |
 | 2 | Emplacements | 8 spots, radial menu, 3 turrets, upgrades, hold-to-sell, targeting modes, build time | the radial menu is usable without explanation | you need a tooltip to build | 20 |
 | 3 | Enemies | 5 types, size class, armour rule, convoy rule, destroyer ranging-in and shelling, breach | the destroyer forces diving | you survive a destroyer surfaced | 15 |
@@ -17,7 +17,7 @@ art) until M8.
 | 7 | **Playtest 1** | 5 friends, video, CSV, `PLAYTEST.md` thresholds | thresholds in `PLAYTEST.md` | any threshold missed → fix before M8 | 10 |
 | 8 | Placeholder art + web | AI assets in the paper style, WASM build on itch.io, playtest 2 | the style keeps readability at 1280×800 | ships are not distinguishable at a glance | 25 |
 
-Total ~150 h. Anything not in the table is backlog (`BACKLOG.md`) and is not started in 2026.
+Total ~150 h. Anything not in the table is a GitHub issue labelled `idea` and is not started in 2026.
 
 ## Sequencing rules
 

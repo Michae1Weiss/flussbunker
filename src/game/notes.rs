@@ -19,6 +19,7 @@ use crate::screens::Screen;
 pub fn plugin(app: &mut App) {
     app.init_resource::<Notes>()
         .add_message::<Hint>()
+        .add_message::<ShowNote>()
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(
             Update,
@@ -67,6 +68,13 @@ impl HintKey {
 #[derive(Message)]
 pub struct Hint {
     pub key: HintKey,
+    pub at: Vec2,
+}
+
+/// Feedback that repeats every time, e.g. "too expensive". Independent of the onboarding switch.
+#[derive(Message)]
+pub struct ShowNote {
+    pub text: &'static str,
     pub at: Vec2,
 }
 
@@ -179,24 +187,36 @@ fn bank_hints(mut lost: MessageReader<TorpedoLost>, mut hints: MessageWriter<Hin
     }
 }
 
-fn show_hints(mut hints: MessageReader<Hint>, mut notes: ResMut<Notes>, mut commands: Commands) {
+fn show_hints(
+    mut hints: MessageReader<Hint>,
+    mut plain: MessageReader<ShowNote>,
+    mut notes: ResMut<Notes>,
+    mut commands: Commands,
+) {
     for hint in hints.read() {
         if !notes.enabled || !notes.shown.insert(hint.key) {
             continue;
         }
-        commands.spawn((
-            Name::new("Note"),
-            Note(Timer::from_seconds(NOTE_SECONDS, TimerMode::Once)),
-            DespawnOnExit(Screen::Gameplay),
-            Text2d::new(hint.key.text()),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::srgb(1.0, 0.95, 0.75)),
-            Transform::from_translation((hint.at + Vec2::new(0.0, 32.0)).extend(Z_UI)),
-        ));
+        commands.spawn(note(hint.key.text(), hint.at, NOTE_SECONDS));
     }
+    for plain in plain.read() {
+        commands.spawn(note(plain.text, plain.at, 1.2));
+    }
+}
+
+fn note(text: &'static str, at: Vec2, seconds: f32) -> impl Bundle {
+    (
+        Name::new("Note"),
+        Note(Timer::from_seconds(seconds, TimerMode::Once)),
+        DespawnOnExit(Screen::Gameplay),
+        Text2d::new(text),
+        TextFont {
+            font_size: FontSize::Px(15.0),
+            ..default()
+        },
+        TextColor(Color::srgb(1.0, 0.95, 0.75)),
+        Transform::from_translation((at + Vec2::new(0.0, 32.0)).extend(Z_UI)),
+    )
 }
 
 fn fade_notes(

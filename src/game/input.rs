@@ -7,6 +7,7 @@ use bevy::prelude::*;
 
 use crate::balance::{TowerKind, BUILD_SPOT_RADIUS, SELL_HOLD_SECONDS, UBOAT_LENGTH};
 use crate::game::map::{BuildSpot, RiverPath};
+use crate::game::notes::ShowNote;
 use crate::game::radial::{Action, CloseMenu, Menu, OpenMenu, Target};
 use crate::game::tower::Occupied;
 use crate::game::uboat::{Station, UBoat};
@@ -25,6 +26,7 @@ pub fn plugin(app: &mut App) {
         .add_message::<UpgradeBoat>()
         .add_message::<ToggleSpeed>()
         .add_message::<TogglePause>()
+        .add_message::<ToggleOverlay>()
         .add_systems(Update, read_intents.in_set(Frame::Input))
         .add_systems(Update, draw_hover.in_set(Frame::Present));
 }
@@ -82,6 +84,10 @@ pub struct ToggleSpeed;
 #[derive(Message)]
 pub struct TogglePause;
 
+/// Tab: the tactical overlay.
+#[derive(Message)]
+pub struct ToggleOverlay;
+
 #[derive(SystemParam)]
 struct Intents<'w> {
     build: MessageWriter<'w, BuildTower>,
@@ -96,6 +102,8 @@ struct Intents<'w> {
     upgrade_boat: MessageWriter<'w, UpgradeBoat>,
     speed: MessageWriter<'w, ToggleSpeed>,
     pause: MessageWriter<'w, TogglePause>,
+    overlay: MessageWriter<'w, ToggleOverlay>,
+    note: MessageWriter<'w, ShowNote>,
 }
 
 fn read_intents(
@@ -127,6 +135,9 @@ fn read_intents(
     }
     if keys.just_pressed(KeyCode::KeyF) {
         intents.speed.write(ToggleSpeed);
+    }
+    if keys.just_pressed(KeyCode::Tab) {
+        intents.overlay.write(ToggleOverlay);
     }
 
     let cursor = cursor_world(&camera, *window);
@@ -173,7 +184,14 @@ fn read_intents(
             }
             (Some(Action::Sell), _, _) => {}
             _ => {
-                intents.close_menu.write(CloseMenu);
+                if let Some(disabled) = cursor.and_then(|c| menu.hit_any(c)) {
+                    intents.note.write(ShowNote {
+                        text: "Zu teuer",
+                        at: open.anchor + disabled.offset,
+                    });
+                } else {
+                    intents.close_menu.write(CloseMenu);
+                }
             }
         }
         return;

@@ -78,10 +78,15 @@ pub struct Menu {
 impl Menu {
     /// The enabled entry under `world`, if any.
     pub fn hit(&self, world: Vec2) -> Option<&Entry> {
+        self.hit_any(world).filter(|e| e.enabled)
+    }
+
+    /// The entry under `world`, enabled or not.
+    pub fn hit_any(&self, world: Vec2) -> Option<&Entry> {
         let open = self.open.as_ref()?;
         open.entries
             .iter()
-            .find(|e| e.enabled && (open.anchor + e.offset).distance(world) <= RADIAL_ENTRY_RADIUS)
+            .find(|e| (open.anchor + e.offset).distance(world) <= RADIAL_ENTRY_RADIUS)
     }
 }
 

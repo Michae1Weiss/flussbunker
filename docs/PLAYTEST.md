@@ -31,7 +31,8 @@ The greybox writes one CSV per run to a local directory. Nothing is uploaded.
 - 4/5 build a turret in wave 1 without help
 - 3/5 dive in the first destroyer wave
 - ≥ 3/5 want a second run
-- nobody reaches wave 12 on the first try
+- no newcomer clears wave 12 on the first try (a cold first-run win means the curve is too flat;
+  wave 12 must still be winnable on a second or third run)
 
 A missed threshold is a redesign item before M8, not a balance tweak.
 

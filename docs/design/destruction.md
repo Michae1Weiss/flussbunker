@@ -48,5 +48,6 @@ turret). Break = two halves sink, several debris pieces, damage radius.
 
 - Several animations for the same action (reload, muzzle, hit), chosen at random.
 - Screen shake on torpedo hits and heavy explosions, scaled by class, can be disabled in settings.
-- Torpedo hit: the Silent Hunter moment — water column, brief hitstop.
+- Torpedo: the three-beat sequence fire → audible run (a ticking wait) → impact with water column
+  and brief hitstop. The wait is part of the payoff; never shorten it for pacing.
 - Underwater silhouettes of sunk ships; stranded wrecks on the banks (`map.md`).

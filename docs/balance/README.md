@@ -59,11 +59,11 @@ Sustained: kills per 10 s of a continuous stream by one tier-1 turret (damage af
 | MTB | 38 / 0 | 6.77 | 11.28 | 6.02 | 5.01 | 6.02 | 8.77 | 3.65 | 1 / 1 / 1 | 2.41 |
 | Corvette | 120 / 3 | 1.43 | 2.38 | 1.73 | 1.44 | 1.82 | 2.69 | 1.12 | 1 / 1 / 1 | 0.66 |
 | Landing | 300 / 1 | 0.76 | 1.27 | 0.74 | 0.62 | 0.75 | 1.10 | 0.46 | 3 / 2 / 2 | 0.29 |
-| Destroyer | 400 / 12 | 0.06 | 0.11 | 0.36 | 0.30 | 0.46 | 0.73 | 0.31 | 4 / 3 / 3 | 0.10 |
+| Destroyer | 380 / 12 | 0.07 | 0.11 | 0.38 | 0.31 | 0.49 | 0.77 | 0.32 | 3 / 3 / 3 | 0.11 |
 | Monitor | 1200 / 100 | 0.02 | 0.04 | 0.02 | 0.02 | 0.02 | 0.03 | 0.01 | 10 / 8 / 8 | 0.01 |
 | Gold transport (prologue) | 200 / 0 | – | – | – | – | – | – | – | 2 / 2 / 2 | 0.46 |
 
-Expected from `enemies.md`: flak best per RM vs MTB and useless (< 0.1) vs Destroyer; 8.8 the best per RM vs Corvette; 8.8 AP still clearly below 15cm vs Destroyer; 15cm kills a Destroyer slowly (a single one needs several passes); Monitor: every gun < 0.1, one IXC sortie (8 tubes) kills it; a full VIIA salvo (4) kills exactly one Destroyer.
+Expected from `enemies.md`: flak best per RM vs MTB and useless (< 0.1) vs Destroyer; 8.8 the best per RM vs Corvette; 8.8 AP still clearly below 15cm vs Destroyer; 15cm kills a Destroyer slowly (a single one needs several passes); Monitor: every gun < 0.1, one IXC sortie (8 tubes) kills it; three VIIA torpedoes kill a Destroyer with one tube spare (no 10-HP leftovers).
 
 ## Boat under destroyer fire
 

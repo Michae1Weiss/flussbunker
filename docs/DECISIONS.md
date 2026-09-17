@@ -31,6 +31,9 @@ game before any further code. Decisions, with reasons:
 | Fictional names, no NS symbols, cartoon tone | §86a StGB and store policy for the German market; the real Bunker Valentin is a memorial |
 | Everything English in the repo | portfolio use; German only for unit names |
 | Comment convention written before stripping the PoC | without a rule nobody knows what to strip |
+| Input module is `input`, messages are named by intent | the PoC's `orders` was fiction naming: three words (input, orders, intents) for one thing cost every reader a lookup |
+| Monitor armour above any shell's damage | the mechanical guarantee for pillar 1; with ordinary armour four maxed 15 cm would kill it |
+| Destroyer 380 HP, three VIIA torpedoes | 400 HP left 10 HP after three torpedoes, which feels like a wasted torpedo |
 
 ## Rejected ideas
 

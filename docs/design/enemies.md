@@ -12,7 +12,7 @@ rules.
 | Corvette | medium | baseline | 8.8 cm | flak (slow), torpedo (wasteful) | – |
 | Landing craft | medium, tough | a breach hurts | 8.8 cm AP, 15 cm | torpedo | flak |
 | Destroyer | heavy | shells the U-boat | **torpedo** | 15 cm (slow) | flak, 8.8 |
-| Monitor | capital | bunker breaker | **torpedo only** | – | all guns |
+| Monitor | capital | bunker breaker | **torpedo only** | – | all guns (belt armour above any shell's damage: shells bounce) |
 
 A run without turrets is possible; a run without the boat is not. That is pillar 1.
 
@@ -41,8 +41,7 @@ A run without turrets is possible; a run without the boat is not. That is pillar
 A slow enemy gold transport cruises up and down the river before wave 1. It cannot reach the bunker,
 cannot shoot back, ignores turrets (there are none yet) and dies only to the boat. The prologue
 ends when it sinks. Its bounty is in normal scale, big enough for one real first decision
-(`economy.md`); the cha-ching presentation may be as big as it likes. Fiction: it pays the enemy
-fleet; divers salvage the gold in the pause.
+(`economy.md`); the cha-ching presentation may be as big as it likes.
 
 ## Waves
 
@@ -53,4 +52,5 @@ fixed:
 - every third wave introduces a threat the previous build cannot answer; the next two drill it
 - fast groups before slow groups (convoy rule)
 - the first destroyer comes alone and telegraphed
-- nobody should clear wave 12 on a first attempt
+- wave 12 is winnable on a second or third run by a player who has understood the boat; a
+  first-attempt clear by a newcomer means the curve is too flat

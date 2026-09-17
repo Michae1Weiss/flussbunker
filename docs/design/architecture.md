@@ -13,7 +13,7 @@ src/
 ├── dev_tools.rs        #[cfg(feature = "dev")]
 ├── screens/            title · gameplay · game_over   (state flow, DespawnOnExit)
 └── game/               one plugin per feature: map, uboat, tower, enemy, projectile,
-                        combat, destruction, wave, economy, bunker, orders (input), hud, telemetry
+                        combat, destruction, wave, economy, bunker, input, hud, telemetry
 examples/               feel harnesses: a minimal App around ONE crate plugin, runnable on its own
 ```
 
@@ -54,8 +54,10 @@ map · pen slot freed by an observer on `Sunk`.
 
 ## Input
 
-`orders.rs` is the only module that reads input. It maps keys to **intents** (`docs/design/ui-input.md`)
-and writes messages. Touch later is a second mapping in the same file.
+`input.rs` is the only module that reads devices. It maps keys and clicks to **intents**
+(`docs/design/ui-input.md`) and writes one message per intent (`FireTorpedo`, `MoveBoat`, …).
+Touch later is a second mapping in the same file. The PoC calls this module `orders.rs`; it is
+renamed at M0 so that module, vocabulary and Bevy's own `ButtonInput` all say the same word.
 
 ## Feel harnesses in `examples/`
 

@@ -50,7 +50,7 @@ ENEMIES = {
     "MTB":       dict(cls="light",   hp=38.0,   armour=0.0,   speed=2.45, bounty=4,  breach=1),
     "Corvette":  dict(cls="medium",  hp=120.0,  armour=3.0,   speed=1.30, bounty=12, breach=2),
     "Landing":   dict(cls="medium",  hp=300.0,  armour=1.0,   speed=0.80, bounty=20, breach=5),
-    "Destroyer": dict(cls="heavy",   hp=400.0,  armour=12.0,  speed=1.05, bounty=48, breach=4),
+    "Destroyer": dict(cls="heavy",   hp=380.0,  armour=12.0,  speed=1.05, bounty=48, breach=4),
     "Monitor":   dict(cls="capital", hp=1200.0, armour=100.0, speed=0.63, bounty=100, breach=8),
 }
 # Prologue target: dies to two VIIA torpedoes or ~25 s of deck gun. Bounty = PROLOGUE_BOUNTY.
@@ -198,7 +198,7 @@ def main():
     p("Expected from `enemies.md`: flak best per RM vs MTB and useless (< 0.1) vs Destroyer; 8.8 the "
       "best per RM vs Corvette; 8.8 AP still clearly below 15cm vs Destroyer; 15cm kills a Destroyer "
       "slowly (a single one needs several passes); Monitor: every gun < 0.1, one IXC sortie (8 tubes) "
-      "kills it; a full VIIA salvo (4) kills exactly one Destroyer.\n")
+      "kills it; three VIIA torpedoes kill a Destroyer with one tube spare (no 10-HP leftovers).\n")
 
     # ---- boat survival ------------------------------------------------------
     p("## Boat under destroyer fire\n")

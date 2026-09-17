@@ -11,11 +11,12 @@ use crate::balance::{
     UBOAT_REARM_SECONDS, UBOAT_SALVO_SPACING, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TURN_RATE,
     UNPAID_RETURN_HP, Z_UBOAT,
 };
-use crate::game::combat::{Damage, DamageKind, Health, Sunk, Weapon};
+use crate::game::combat::{Damage, DamageKind, Health, LastHitBy, Sunk, Weapon};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, EnemyType};
 use crate::game::input::{FireTorpedo, MoveUBoat, ToggleTrim, UpgradeBoat};
 use crate::game::map::RiverPath;
+use crate::game::notes::{Hint, HintKey};
 use crate::game::projectile::{shell_bundle, torpedo_bundle};
 use crate::game::wave::WaveFinished;
 use crate::game_plugin::Sim;
@@ -36,7 +37,14 @@ pub fn plugin(app: &mut App) {
                     .chain()
                     .in_set(Sim::Spawn),
                 navigate.in_set(Sim::Movement),
-                (dock, fire_torpedoes, fire_deck_gun, collide_with_ships).in_set(Sim::Targeting),
+                (
+                    dock,
+                    fire_torpedoes,
+                    fire_deck_gun,
+                    collide_with_ships,
+                    shelled,
+                )
+                    .in_set(Sim::Targeting),
             ),
         )
         .add_observer(on_boat_lost);
@@ -275,6 +283,7 @@ fn apply_trim_intents(
     mut intents: MessageReader<ToggleTrim>,
     mut boats: Query<(&Transform, &Model, &mut Trim), With<UBoat>>,
     ships: Query<(&Transform, &EnemyType), With<Enemy>>,
+    mut hints: MessageWriter<Hint>,
 ) {
     for _ in intents.read() {
         for (transform, model, mut trim) in &mut boats {
@@ -283,6 +292,10 @@ fn apply_trim_intents(
                 kind.0.stats().class != SizeClass::Light && overlaps(transform, ship, kind)
             });
             if surfacing && blocked {
+                hints.write(Hint {
+                    key: HintKey::ContactAbove,
+                    at: transform.translation.truncate(),
+                });
                 continue;
             }
             *trim = trim.toggled(model.0.stats().dive_seconds);
@@ -391,6 +404,7 @@ fn fire_torpedoes(
     path: Res<RiverPath>,
     mut commands: Commands,
     mut intents: MessageReader<FireTorpedo>,
+    mut hints: MessageWriter<Hint>,
     mut boats: Query<
         (
             &Transform,
@@ -407,8 +421,15 @@ fn fire_torpedoes(
 
     for (transform, model, station, heading, trim, mut torpedoes) in &mut boats {
         torpedoes.tube.tick(time.delta());
-        if !requested || !trim.can_fire() || torpedoes.loaded == 0 || !torpedoes.tube.is_finished()
-        {
+        let at = transform.translation.truncate();
+        if !requested || !trim.can_fire() || !torpedoes.tube.is_finished() {
+            continue;
+        }
+        if torpedoes.loaded == 0 {
+            hints.write(Hint {
+                key: HintKey::EmptyTubes,
+                at,
+            });
             continue;
         }
 
@@ -419,6 +440,10 @@ fn fire_torpedoes(
             -tangent
         };
         if heading.0.angle_to(axis).abs() > UBOAT_FIRE_ALIGNMENT {
+            hints.write(Hint {
+                key: HintKey::BowNotAligned,
+                at,
+            });
             continue;
         }
 
@@ -510,6 +535,26 @@ fn collide_with_ships(
                 kind: DamageKind::Ram,
                 ap: false,
                 weapon: Weapon::Ram,
+            });
+        }
+    }
+}
+
+/// Two destroyer hits without diving earn the dive hint.
+fn shelled(
+    mut hints: MessageWriter<Hint>,
+    mut hits: Local<u32>,
+    boats: Query<(&Transform, &LastHitBy, &Trim), (With<UBoat>, Changed<LastHitBy>)>,
+) {
+    for (transform, last, trim) in &boats {
+        if last.0 != Weapon::Enemy || !matches!(trim, Trim::Surfaced) {
+            continue;
+        }
+        *hits += 1;
+        if *hits >= 2 {
+            hints.write(Hint {
+                key: HintKey::Dive,
+                at: transform.translation.truncate(),
             });
         }
     }

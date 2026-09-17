@@ -16,6 +16,8 @@ pub const Z_ENEMY: f32 = 20.0;
 pub const Z_PROJECTILE: f32 = 30.0;
 pub const Z_DEBRIS: f32 = 40.0;
 pub const Z_UI: f32 = 50.0;
+/// Seconds an onboarding note stays readable.
+pub const NOTE_SECONDS: f32 = 4.0;
 
 pub const STARTING_MARKS: u32 = 0;
 /// RM paid at the end of every wave, kills or not.

@@ -1,5 +1,5 @@
 //! Shells (tracked, always hit) and torpedoes (straight run, first hull on the line).
-//! Sole writer of `Shell`, `Torpedo`, `Lifetime`; writes `Damage`.
+//! Sole writer of `Shell`, `Torpedo`, `Lifetime`; writes `Damage` and `TorpedoLost`.
 
 use bevy::prelude::*;
 
@@ -14,7 +14,7 @@ const HIT_RADIUS: f32 = 7.0;
 const TORPEDO_BEAM: f32 = 24.0;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(
+    app.add_message::<TorpedoLost>().add_systems(
         FixedUpdate,
         (
             (fly_shells, run_torpedoes).in_set(Sim::Movement),
@@ -43,6 +43,12 @@ pub struct Torpedo {
 
 #[derive(Component)]
 pub struct Lifetime(pub Timer);
+
+/// A torpedo ran out or left the channel without hitting anything.
+#[derive(Message)]
+pub struct TorpedoLost {
+    pub at: Vec2,
+}
 
 pub fn shell_bundle(
     origin: Vec2,
@@ -157,6 +163,7 @@ fn run_torpedoes(
     path: Res<RiverPath>,
     mut commands: Commands,
     mut damage: MessageWriter<Damage>,
+    mut lost: MessageWriter<TorpedoLost>,
     mut torpedoes: Query<(Entity, &mut Transform, &mut Torpedo)>,
     enemies: Query<(Entity, &Transform), (With<crate::game::enemy::Enemy>, Without<Torpedo>)>,
 ) {
@@ -170,6 +177,7 @@ fn run_torpedoes(
         let position = transform.translation.truncate();
 
         if torpedo.run_remaining <= 0.0 || !path.contains(position) {
+            lost.write(TorpedoLost { at: position });
             commands.spawn(splash_bundle(position, Color::srgb(0.7, 0.85, 0.95), 8.0));
             commands.entity(entity).despawn();
             continue;

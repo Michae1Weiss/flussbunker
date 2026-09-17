@@ -9,6 +9,8 @@ fn main() -> AppExit {
                     primary_window: Some(Window {
                         title: "Flussbunker".to_string(),
                         resolution: WindowResolution::new(1280, 720),
+                        fit_canvas_to_parent: true,
+                        prevent_default_event_handling: true,
                         ..default()
                     }),
                     ..default()

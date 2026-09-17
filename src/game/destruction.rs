@@ -108,6 +108,8 @@ pub struct Blast {
 /// A piece flying on a ballistic arc; `height` is drawn as scale.
 #[derive(Component)]
 pub struct Debris {
+    /// Index into `DEBRIS_TYPES`.
+    pub kind: usize,
     pub velocity: Vec2,
     pub height: f32,
     pub vertical_speed: f32,
@@ -145,6 +147,7 @@ fn on_sunk(
                     position,
                     transform.rotation,
                     size,
+                    sprite.image.clone(),
                     Color::srgb(0.55, 0.25, 0.10),
                 ),
                 Drifting { to: bank },
@@ -155,6 +158,7 @@ fn on_sunk(
                 position,
                 transform.rotation,
                 size,
+                sprite.image.clone(),
                 Color::srgb(0.06, 0.12, 0.18),
             ));
             spawn_debris(
@@ -174,6 +178,7 @@ fn on_sunk(
                     half,
                     tilt,
                     Vec2::new(size.x, size.y * 0.45),
+                    sprite.image.clone(),
                     Color::srgb(0.06, 0.12, 0.18),
                 ));
             }
@@ -207,18 +212,26 @@ fn on_sunk(
                 position,
                 transform.rotation * Quat::from_rotation_z(0.5),
                 size,
+                sprite.image.clone(),
                 Color::srgb(0.06, 0.12, 0.18),
             ));
         }
     }
 }
 
-fn wreck(position: Vec2, rotation: Quat, size: Vec2, color: Color) -> impl Bundle {
+fn wreck(
+    position: Vec2,
+    rotation: Quat,
+    size: Vec2,
+    image: Handle<Image>,
+    color: Color,
+) -> impl Bundle {
     (
         Name::new("Wreck"),
         Wreck,
         DespawnOnExit(Screen::Gameplay),
         Sprite {
+            image,
             color,
             custom_size: Some(size),
             ..default()
@@ -237,17 +250,19 @@ fn spawn_debris(
     let room = DEBRIS_CAP.saturating_sub(airborne);
     for i in 0..count.min(room) {
         // The first piece is the turret, the heaviest; the rest are drawn at random.
-        let (damage, size) = if i == 0 {
-            DEBRIS_TYPES[0]
+        let kind = if i == 0 {
+            0
         } else {
-            DEBRIS_TYPES[rng.range(1.0, DEBRIS_TYPES.len() as f32) as usize]
+            rng.range(1.0, DEBRIS_TYPES.len() as f32) as usize
         };
+        let (damage, size) = DEBRIS_TYPES[kind];
         let direction = Vec2::from_angle(rng.range(0.0, std::f32::consts::TAU));
         let speed = rng.range(1.5, 4.0) * TILE_SIZE;
         commands.spawn((
             Name::new("Debris"),
             DespawnOnExit(Screen::Gameplay),
             Debris {
+                kind,
                 velocity: direction * speed,
                 height: 0.0,
                 vertical_speed: rng.range(2.0, 4.0) * TILE_SIZE,

@@ -3,6 +3,7 @@
 
 use bevy::prelude::*;
 
+pub mod art;
 pub mod bunker;
 pub mod combat;
 pub mod destruction;
@@ -22,6 +23,7 @@ pub mod wave;
 
 pub fn plugin(app: &mut App) {
     app.add_plugins((
+        art::plugin,
         map::plugin,
         combat::plugin,
         destruction::plugin,

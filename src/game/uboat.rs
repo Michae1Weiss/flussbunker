@@ -165,13 +165,10 @@ fn ready(seconds: f32) -> Timer {
     timer
 }
 
-fn sprite_for(model: BoatModel) -> Sprite {
+/// Greybox size per model; the image, if any, belongs to `art` and is kept.
+fn dress(sprite: &mut Sprite, model: BoatModel) {
     let length = UBOAT_LENGTH + 4.0 * model as u8 as f32;
-    Sprite {
-        color: Color::srgb(0.42, 0.47, 0.52),
-        custom_size: Some(Vec2::new(12.0, length)),
-        ..default()
-    }
+    sprite.custom_size = Some(Vec2::new(12.0, length));
 }
 
 /// Spawns the flotilla's model at the bunker with `hp_fraction` of its hull.
@@ -204,7 +201,11 @@ fn commission(
             along: path.length(),
             goal: path.length(),
         },
-        sprite_for(flotilla.model),
+        {
+            let mut sprite = Sprite::default();
+            dress(&mut sprite, flotilla.model);
+            sprite
+        },
         Transform::from_translation(path.bunker_point().extend(Z_UBOAT)),
         DespawnOnExit(Screen::Gameplay),
     ));
@@ -263,7 +264,7 @@ fn apply_upgrades(
         model.0 = next;
         *health = Health::new(next.stats().hp);
         torpedoes.loaded = next.stats().tubes;
-        *sprite = sprite_for(next);
+        dress(&mut sprite, next);
     }
 }
 
@@ -343,10 +344,15 @@ fn navigate(
             Trim::Surfaced | Trim::Submerged => {}
         }
 
-        sprite.color = match *trim {
-            Trim::Surfaced => Color::srgb(0.42, 0.47, 0.52),
-            Trim::Submerged => Color::srgb(0.16, 0.22, 0.30),
-            _ => Color::srgb(0.28, 0.34, 0.42),
+        // A drawing is tinted, a rectangle is coloured.
+        let drawn = sprite.image != Handle::default();
+        sprite.color = match (&*trim, drawn) {
+            (Trim::Surfaced, true) => Color::WHITE,
+            (Trim::Submerged, true) => Color::srgb(0.35, 0.45, 0.6),
+            (_, true) => Color::srgb(0.65, 0.7, 0.8),
+            (Trim::Surfaced, false) => Color::srgb(0.42, 0.47, 0.52),
+            (Trim::Submerged, false) => Color::srgb(0.16, 0.22, 0.30),
+            (_, false) => Color::srgb(0.28, 0.34, 0.42),
         };
 
         let speed = match *trim {

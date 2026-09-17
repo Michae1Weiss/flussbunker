@@ -47,6 +47,14 @@ const BUILD_SPOT_TILES: &[(f32, f32)] = &[
     (30.5, 14.5),
 ];
 
+/// Greybox water; hidden when a painted map exists (`art`).
+#[derive(Component)]
+pub struct RiverSegment;
+
+/// The bunker sprite at the river's end.
+#[derive(Component)]
+pub struct BunkerSprite;
+
 /// A place a turret can be built. Occupancy is tracked by `tower::Occupied`.
 #[derive(Component)]
 pub struct BuildSpot;
@@ -161,6 +169,7 @@ fn spawn_river(
         let along = b - a;
         commands.spawn((
             Name::new("River segment"),
+            RiverSegment,
             DespawnOnExit(Screen::Gameplay),
             Sprite {
                 color: water,
@@ -172,6 +181,7 @@ fn spawn_river(
         ));
         commands.spawn((
             Name::new("River bend"),
+            RiverSegment,
             DespawnOnExit(Screen::Gameplay),
             Mesh2d(bend.clone()),
             MeshMaterial2d(water_material.clone()),
@@ -181,6 +191,7 @@ fn spawn_river(
 
     commands.spawn((
         Name::new("Bunker"),
+        BunkerSprite,
         DespawnOnExit(Screen::Gameplay),
         Sprite {
             color: Color::srgb(0.34, 0.32, 0.30),

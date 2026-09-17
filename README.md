@@ -17,6 +17,11 @@ cargo run --features dev     # + FPS log and schedule ambiguity warnings
 cargo test
 ```
 
+Web build (playtests by link): `cargo install trunk`, then `trunk serve` and open
+http://127.0.0.1:8080; `trunk build` writes a static `dist/` for itch.io. The `wasm32` target
+comes with the toolchain file. Art goes into `assets/` as listed in `docs/ART.md`; missing files
+stay rectangles.
+
 Controls: left-click a build spot or turret for the radial menu, left-click the river to move the
 boat, the docked boat for the shipyard. Right-click dives. Space fires (hold: salvo). Enter starts
 the next wave, F toggles 2x pace, Esc closes a menu. Feel harnesses: `cargo run --example boat`,

@@ -72,7 +72,7 @@ fn react_to_damage(
             continue;
         }
         let base = sprite.color;
-        sprite.color = Color::WHITE;
+        sprite.color = Color::srgb(1.0, 0.55, 0.45);
         commands.entity(hit.target).insert(HitFlash {
             timer: Timer::from_seconds(FLASH_SECONDS, TimerMode::Once),
             base,

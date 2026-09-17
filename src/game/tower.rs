@@ -114,13 +114,16 @@ fn gun_for(kind: TowerKind, tier: u8) -> Gun {
     }
 }
 
-fn sprite_for(kind: TowerKind, tier: u8) -> Sprite {
+/// Greybox colour and size for a tier; the image, if any, belongs to `art` and is kept.
+fn dress(sprite: &mut Sprite, kind: TowerKind, tier: u8, alpha: f32) {
     let stats = kind.stats(tier);
-    Sprite {
-        color: Color::srgb(stats.rgb[0], stats.rgb[1], stats.rgb[2]),
-        custom_size: Some(Vec2::splat(TILE_SIZE * (0.5 + 0.1 * tier as f32))),
-        ..default()
+    sprite.color = if sprite.image == Handle::default() {
+        Color::srgb(stats.rgb[0], stats.rgb[1], stats.rgb[2])
+    } else {
+        Color::WHITE
     }
+    .with_alpha(alpha);
+    sprite.custom_size = Some(Vec2::splat(TILE_SIZE * (0.5 + 0.1 * tier as f32)));
 }
 
 pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
@@ -135,9 +138,10 @@ pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {
         Range(stats.range),
         gun_for(kind, 0),
         Constructing(Timer::from_seconds(TOWER_BUILD_SECONDS, TimerMode::Once)),
-        Sprite {
-            color: sprite_for(kind, 0).color.with_alpha(0.4),
-            ..sprite_for(kind, 0)
+        {
+            let mut sprite = Sprite::default();
+            dress(&mut sprite, kind, 0, 0.4);
+            sprite
         },
         Transform::from_translation(position.extend(Z_TOWER)),
         DespawnOnExit(Screen::Gameplay),
@@ -218,7 +222,7 @@ fn finish_construction(
 ) {
     for (entity, kind, tier, mut constructing, mut sprite) in &mut sites {
         if constructing.0.tick(time.delta()).just_finished() {
-            *sprite = sprite_for(kind.0, tier.0);
+            dress(&mut sprite, kind.0, tier.0, 1.0);
             commands.entity(entity).remove::<Constructing>();
         }
     }
@@ -265,7 +269,8 @@ fn upgrade(
         investment.0 += kind.0.stats(next).cost;
         range.0 = kind.0.stats(next).range;
         *gun = gun_for(kind.0, next);
-        *sprite = sprite_for(kind.0, next);
+        let alpha = sprite.color.alpha();
+        dress(&mut sprite, kind.0, next, alpha);
     }
 }
 

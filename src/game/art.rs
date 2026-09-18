@@ -130,10 +130,12 @@ fn exists(key: &str) -> bool {
     std::path::Path::new("assets").join(key).exists()
 }
 
-/// The web build cannot look before it loads; ship every listed file or none.
+/// The web build cannot look before it loads; it trusts the list `tools/art_fit.py` keeps.
 #[cfg(target_arch = "wasm32")]
-fn exists(_key: &str) -> bool {
-    true
+fn exists(key: &str) -> bool {
+    include_str!("../../assets/manifest.txt")
+        .lines()
+        .any(|line| line.trim() == key)
 }
 
 fn load(mut art: ResMut<Art>, assets: Res<AssetServer>) {

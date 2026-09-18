@@ -4,7 +4,10 @@
   art_fit.py fit SOURCE KEY [--keep-background]  trim, pad to the key's aspect, write assets/KEY
   art_fit.py split SHEET OUT_DIR                  cut one drawing per PNG out of a generated sheet
   art_fit.py check                                which keys exist, which sources look wrong
+  art_fit.py sheet OUT                            guide sheet to draw every sprite on, one scale
+  art_fit.py slice SHEET                          cut a drawn sheet by the guide's cells into assets/
   art_fit.py map-template OUT                     river band, build spots, bunker: draw over this
+  art_fit.py map-mask OUT                         the exact water as white on transparent, to paint under
   art_fit.py overlay MAP OUT                      the same geometry drawn onto a finished map
 
 KEY is a path from docs/ART.md, e.g. sprites/ships/mtb.png. Needs ImageMagick 7 (`magick`).
@@ -30,8 +33,11 @@ CENTRELINE = [(-1, 3), (9, 3), (12, 8), (23, 8), (23, 13), (28, 13), (28, 17.5)]
 BUILD_SPOTS = [(7.5, 5.5), (13, 4.5), (14, 10.5), (20.5, 5.5),
                (25.5, 10.5), (20.5, 14.5), (25.5, 15.5), (30.5, 14.5)]
 
-# Exported pixels per world unit. The game scales to world size; 4x stays crisp on a 4K screen.
+# Pixels per world unit: drawn on the sheet, and exported. The game scales to world size;
+# 4x stays crisp on a 4K screen, 16x gives the pencil room.
+DRAW_SCALE = 16
 SCALE = 4
+SHEET_GAP = 64
 BACKGROUND_FUZZ = "12%"
 
 # key -> (world w, world h). Sprites on the paper (decals) keep their background when asked.
@@ -165,12 +171,74 @@ def check():
         print(f"{w:>5}x{h:<5} {key}{note}")
 
 
+def sheet_cells():
+    """Cells sorted tallest first, packed into rows; the same layout draws the guide and slices it."""
+    keys = [k for k in SIZES if k != "map/background.png"]
+    keys.sort(key=lambda k: (-SIZES[k][1], -SIZES[k][0]))
+    cells, x, y, row_h, width = [], SHEET_GAP, SHEET_GAP, 0, 4096
+    for key in keys:
+        w, h = SIZES[key][0] * DRAW_SCALE, SIZES[key][1] * DRAW_SCALE
+        if x + w + SHEET_GAP > width:
+            x, y, row_h = SHEET_GAP, y + row_h + SHEET_GAP, 0
+        cells.append((key, x, y, w, h))
+        x += w + SHEET_GAP
+        row_h = max(row_h, h)
+    return cells, width, y + row_h + SHEET_GAP
+
+
+def sheet(out):
+    cells, w, h = sheet_cells()
+    draws = ["-fill", "none", "-stroke", "rgba(60,140,220,0.6)", "-strokewidth", "2"]
+    for key, x, y, cw, ch in cells:
+        draws += ["-draw", f"rectangle {x},{y} {x + cw},{y + ch}"]
+        draws += ["-draw", f"line {x + cw / 2:.0f},{y} {x + cw / 2:.0f},{y + ch}",
+                  "-draw", f"line {x},{y + ch / 2:.0f} {x + cw},{y + ch / 2:.0f}"]
+    labels = ["-stroke", "none", "-fill", "rgba(60,140,220,0.9)", "-pointsize", "18"]
+    fonts = ["/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Menlo.ttc",
+             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+    labels += next((["-font", f] for f in fonts if os.path.exists(f)), [])
+    for key, x, y, cw, ch in cells:
+        name = os.path.basename(key)[:-4]
+        labels += ["-draw", f"text {x},{y - 6} '{name} {SIZES[key][0]}x{SIZES[key][1]}'"]
+    magick("-size", f"{w}x{h}", "xc:white", *draws, *labels, out)
+    print(f"{out}  {w}x{h}, {DRAW_SCALE} px per world unit; draw on a layer above, bow up")
+
+
+def slice_sheet(sheet_png):
+    """The drawn sheet, guide layer hidden, exported at the guide's size."""
+    cells, w, h = sheet_cells()
+    sw, sh = size_of(sheet_png)
+    if (sw, sh) != (w, h):
+        sys.exit(f"{sheet_png} is {sw}x{sh}, the guide is {w}x{h}; export at 100%")
+    with tempfile.TemporaryDirectory() as tmp:
+        for key, x, y, cw, ch in cells:
+            piece = os.path.join(tmp, "piece.png")
+            magick(sheet_png, "-crop", f"{cw}x{ch}+{x}+{y}", "+repage", piece)
+            if magick(piece, "-format", "%[fx:maxima.a]", "info:") != "0":
+                fit(piece, key)
+    check()
+
+
+def map_mask(out):
+    """The water exactly as the code has it; paint banks around it, keep it as a clipping mask."""
+    t = 96
+    w, h = MAP_TILES[0] * t, MAP_TILES[1] * t
+    magick("-size", f"{w}x{h}", "xc:none", *river_strokes(t, "white"), out)
+    print(f"{out}  {w}x{h}: white is water, everything else is land")
+
+
+def river_strokes(t, colour):
+    """One round-capped line per segment: a wide polyline on a transparent canvas draws phantom chords."""
+    draws = ["-fill", "none", "-stroke", colour, "-strokewidth", f"{2 * RIVER_HALF / TILE * t:.0f}"]
+    for (x1, y1), (x2, y2) in zip(CENTRELINE, CENTRELINE[1:]):
+        draws += ["-draw", f"stroke-linecap round line {x1 * t:.0f},{y1 * t:.0f} {x2 * t:.0f},{y2 * t:.0f}"]
+    return draws
+
+
 def geometry_draws(px_per_tile):
     t = px_per_tile
     path = " ".join(f"{x * t:.0f},{y * t:.0f}" for x, y in CENTRELINE)
-    draws = [
-        "-fill", "none", "-stroke", "rgba(40,120,220,0.35)", "-strokewidth", f"{2 * RIVER_HALF / TILE * t:.0f}",
-        "-draw", f"stroke-linejoin round polyline {path}",
+    draws = river_strokes(t, "rgba(40,120,220,0.35)") + [
         "-stroke", "rgba(220,60,40,0.9)", "-strokewidth", "3",
         "-draw", f"polyline {path}",
     ]
@@ -212,7 +280,10 @@ def main():
     p.add_argument("sheet")
     p.add_argument("out_dir")
     sub.add_parser("check")
+    sub.add_parser("sheet").add_argument("out")
+    sub.add_parser("slice").add_argument("sheet")
     sub.add_parser("map-template").add_argument("out")
+    sub.add_parser("map-mask").add_argument("out")
     p = sub.add_parser("overlay")
     p.add_argument("map")
     p.add_argument("out")
@@ -223,6 +294,12 @@ def main():
         split(args.sheet, args.out_dir)
     elif args.command == "check":
         check()
+    elif args.command == "sheet":
+        sheet(args.out)
+    elif args.command == "slice":
+        slice_sheet(args.sheet)
+    elif args.command == "map-mask":
+        map_mask(args.out)
     elif args.command == "map-template":
         map_template(args.out)
     elif args.command == "overlay":

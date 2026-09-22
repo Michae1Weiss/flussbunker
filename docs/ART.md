@@ -30,11 +30,12 @@ Each rule exists because breaking it is the usual way hand-drawn game art ends u
    distance; shape does not.
 6. **Red belongs to the player.** Boat, emplacements, torpedoes and the bunker carry the one red;
    enemies stay black and grey. The cheapest readability there is.
-7. **Contrast hierarchy.** The map is light and quiet, the water quietest of all: ships move on it.
-   Sprites carry the strongest contrast on screen: heavy outline, hulls hatched or filled dark. A
-   paper-white hull on a paper map reads only by its edge. If the map competes, the map changes.
+7. **Value hierarchy, darkest first: sprite ink > water tone > banks > land.** Sprites are white
+   paper cutouts with black ink, so they need a toned ground to stand on: the water is a flat,
+   calm wash, clearly darker than paper and clearly lighter than ink. Banks are grey pencil, never
+   solid black. Land stays near white. If the map competes with the ships, the map changes.
 8. **Draw in full contrast, never pre-tinted.** The game tints at runtime: submerged boat
-   blue-grey, hits flash red, wrecks dark.
+   blue-grey, hits flash red, sinking wrecks grey.
 9. **Leave the inside empty or draw it.** The script fills everything inside the outline with paper,
    so a closed outline is enough; draw only what should show on top.
 10. **Squint test for every sprite:** zoom Procreate out until the cell is the size of the game
@@ -43,7 +44,8 @@ Each rule exists because breaking it is the usual way hand-drawn game art ends u
 ## Files and sizes
 
 World units, 1 tile = 48. "On screen" is at 1920x1080 (1.25 px per unit); at 1280x800 multiply by
-two thirds. The script exports at 4 px per unit.
+two thirds. The script exports at 3 px per unit: a Retina MacBook shows about 2.3, and linear
+filtering stays clean up to about 2x reduction.
 
 | File | World (w x h) | On screen | Notes |
 |---|---|---|---|
@@ -59,12 +61,12 @@ two thirds. The script exports at 4 px per unit.
 | `sprites/turrets/{flak,gun88,heavy15}_{0,1,2}.png` | 36 / 43 / 50 square | 45 / 54 / 63 | flak tier 2 two barrels, 88 tier 2 twin, 15 cm one, two, three barrels |
 | `sprites/bunker.png` | 77 square | 96 | |
 | `sprites/spot.png` | 48 square | 60 | flat: a pencil circle, "build here" |
-| `sprites/splash.png` | 48 square | scaled per use | flat, centred |
+| `sprites/splash.png` | 48 square | scaled per use | flat, centred, seen from above: a ring burst, not a fountain from the side |
 | `sprites/crater.png` | 22 square | scaled per use | flat |
 | `sprites/debris_0..5.png` | 14, 6, 7, 8, 9, 10 square | ~1.6x | turret, funnel, lifeboat, crate, anchor, hatch |
 | `sprites/torpedo.png` | 5 x 14 | 6 x 18 | flat: runs under water |
 | `sprites/shell.png` | 4 x 4 | 5 | flat |
-| `map/background.png` | 1536 x 864 | the window | 3072 x 1728 px |
+| `map/background.png` | 1632 x 960 with bleed | the window | drawn 6528 x 3840, stored 3264 x 1920 |
 | `fonts/pencil.ttf` | | | an OFL handwriting font, e.g. Patrick Hand or Kalam |
 
 The ship sizes live in `src/balance.rs` (`EnemyKind::stats`, `UBOAT_*`, `TOWER_SIZE`,
@@ -104,24 +106,44 @@ python3 tools/art_fit.py map-template art/guides/map_template.png
 python3 tools/art_fit.py map-mask art/guides/map_mask.png
 ```
 
-1. Import the template as a canvas (3072 x 1728). The blue band is the water exactly as the
-   code has it, the circles are build spots, the square is the bunker. Lock it.
+The canvas is 6528 x 3840: 4 px per world unit, the 32 x 18 tile playfield plus one tile of
+bleed on every side (the blue frame is the edge of a 16:9 screen; a 16:10 MacBook sees the bleed
+top and bottom, so draw paper and land there too). It is 4 px per unit, the sheet is 16: the
+legend in the bottom-left corner shows the line weights at this scale. Use it, not the brush
+sizes from the sheet.
+
+1. Import the template as a canvas. The blue band is the water exactly as the code has it, the
+   circles are build spots, the square is the bunker. Lock it.
 2. Actions, Add, Insert a file: the mask. It lands on the band; lock it.
-3. A `water` layer above the mask, set to Clipping Mask: whatever you paint there stays inside the
-   river. Banks go on a layer above everything, drawn along the band's edge; they may bulge
-   outward, never inward.
-4. Leave the circles and the square bare: spot and bunker are sprites.
-5. Hide template and mask, export PNG as `art/drawn/map.png`, then check it:
+3. A `water` layer above the mask, set to Clipping Mask: fill it with one flat, calm tone
+   (grey-blue, around 25 % darkness) and a few light flow marks. Nothing busy on the water:
+   ships live there.
+4. Banks on a layer above, along the band's edge, grey pencil at most as heavy as the legend's
+   bank line. They may bulge outward, never inward.
+5. Land: near-white paper, sparse detail. Nothing bigger than the true-size corvette outline in
+   the legend corner; a tree is one tile at most. Leave the circles and the square bare: spot
+   and bunker are sprites.
+6. Hide template and mask, export PNG as `art/drawn/map.png`, then:
 
 ```bash
 python3 tools/art_fit.py map art/drawn/map.png
 python3 tools/art_fit.py overlay assets/map/background.png /tmp/overlay.png
+cargo run --example lineup -- full
 ```
+
+`map` also takes an old 16:9 map without bleed and pads it with paper.
+
+## Checking a change
+
+`cargo run --example lineup -- full` (or `-- 1280 800`) lays every ship, boat and emplacement
+tier on the real map with the notes filled and the radial menu open, then saves
+`target/lineup/<size>.png` and `-overlay.png` and quits. Look at the 1280 x 800 one first: that is
+the M8 kill criterion.
 
 ## What the script does to a sprite
 
 Cut the cell, fill the inside of the outline with paper (`#f7f5ef`), add a cut edge of 1 unit
-(less on small debris) and a soft shadow half a unit down-right, scale to 4 px per unit, write
+(less on small debris) and a soft shadow half a unit down-right, scale to 3 px per unit, write
 `assets/<file>`, update `assets/manifest.txt`. The web build cannot look at the disk and loads
 exactly the files in that manifest. Flat sprites (spot, splash, crater, torpedo, shell) are only
 cut and scaled.

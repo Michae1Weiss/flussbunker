@@ -24,7 +24,11 @@ ASSETS = os.path.join(ROOT, "assets")
 
 TILE = 48.0
 MAP_TILES = (32, 18)
-MAP_PX = (3072, 1728)
+# Paper around the playfield, in tiles: a 16:10 screen sees one more tile top and bottom.
+BLEED = 1
+# Map canvas pixels per world unit, and the game's copy (WebGL caps textures near 4096 px).
+MAP_DRAW_SCALE = 4
+MAP_GAME_SCALE = 2
 RIVER_HALF = 0.9 * TILE
 SPOT_RADIUS = 0.5 * TILE
 BUNKER_SIDE = 1.6 * TILE
@@ -209,58 +213,108 @@ def slice_sheet(sheet_png):
     check()
 
 
+def map_px(scale):
+    """Canvas size with bleed at `scale` pixels per world unit."""
+    return tuple(round((n + 2 * BLEED) * TILE * scale) for n in MAP_TILES)
+
+
+def at(t, x, y):
+    """Play-area tile coordinates to canvas pixels on a bleed canvas with `t` px per tile."""
+    return (x + BLEED) * t, (y + BLEED) * t
+
+
 def river_strokes(t, colour):
     """One round-capped line per segment: a wide polyline on a transparent canvas draws phantom chords."""
     draws = ["-fill", "none", "-stroke", colour, "-strokewidth", f"{2 * RIVER_HALF / TILE * t:.0f}"]
     for (x1, y1), (x2, y2) in zip(CENTRELINE, CENTRELINE[1:]):
-        draws += ["-draw", f"stroke-linecap round line {x1 * t:.0f},{y1 * t:.0f} {x2 * t:.0f},{y2 * t:.0f}"]
+        (ax, ay), (bx, by) = at(t, x1, y1), at(t, x2, y2)
+        draws += ["-draw", f"stroke-linecap round line {ax:.0f},{ay:.0f} {bx:.0f},{by:.0f}"]
     return draws
 
 
-def geometry_draws(t):
-    path = " ".join(f"{x * t:.0f},{y * t:.0f}" for x, y in CENTRELINE)
-    draws = river_strokes(t, "rgba(40,120,220,0.35)") + [
+def geometry_draws(t, band):
+    path = " ".join("{:.0f},{:.0f}".format(*at(t, x, y)) for x, y in CENTRELINE)
+    draws = river_strokes(t, band) + [
         "-stroke", "rgba(220,60,40,0.9)", "-strokewidth", "3", "-draw", f"polyline {path}"]
     for x, y in BUILD_SPOTS:
-        draws += ["-draw", f"circle {x * t:.0f},{y * t:.0f} {x * t + SPOT_RADIUS / TILE * t:.0f},{y * t:.0f}"]
-    bx, by = CENTRELINE[-1]
+        cx, cy = at(t, x, y)
+        draws += ["-draw", f"circle {cx:.0f},{cy:.0f} {cx + SPOT_RADIUS / TILE * t:.0f},{cy:.0f}"]
+    bx, by = at(t, *CENTRELINE[-1])
     half = BUNKER_SIDE / TILE * t / 2
-    draws += ["-draw", f"rectangle {bx * t - half:.0f},{by * t - half:.0f} {bx * t + half:.0f},{by * t + half:.0f}"]
+    draws += ["-draw", f"rectangle {bx - half:.0f},{by - half:.0f} {bx + half:.0f},{by + half:.0f}"]
+    x0, y0 = at(t, 0, 0)
+    x1, y1 = at(t, *MAP_TILES)
+    draws += ["-stroke", "rgba(60,140,220,0.8)", "-strokewidth", "2",
+              "-draw", f"rectangle {x0:.0f},{y0:.0f} {x1:.0f},{y1:.0f}"]
+    return draws
+
+
+def scale_references(t):
+    """Legend and true-size outlines in the free land at the bottom left of the playfield."""
+    u = t / TILE
+    x, y = at(t, 1, 12.2)
+    draws = ["-fill", "none", "-stroke", "black"]
+    for i, (weight, label) in enumerate(((OUTLINE, "bank, at most"), (DETAIL, "flow, grass, detail"))):
+        ly = y + i * 0.9 * t
+        draws += ["-strokewidth", f"{weight * u:.1f}", "-draw", f"line {x:.0f},{ly:.0f} {x + 2 * t:.0f},{ly:.0f}"]
+        draws += ["-stroke", "none", "-fill", "rgba(60,140,220,1)", "-pointsize", f"{0.35 * t:.0f}", *font_args(),
+                  "-draw", f"text {x + 2.2 * t:.0f},{ly + 0.12 * t:.0f} '{label}'", "-fill", "none", "-stroke", "black"]
+    shapes = [("MTB", 29), ("destroyer", 58), ("monitor", 72)]
+    sx, sy = x, y + 2.2 * t
+    draws += ["-stroke", "rgba(60,140,220,1)", "-strokewidth", "2"]
+    for name, length in shapes:
+        w, h = length * HULL_BEAM_RATIO * u, length * u
+        draws += ["-draw", f"roundrectangle {sx:.0f},{sy:.0f} {sx + w:.0f},{sy + h:.0f} {w / 2:.0f},{w / 2:.0f}"]
+        sx += w + 0.5 * t
+    turret = 43.2 * u
+    draws += ["-draw", f"rectangle {sx:.0f},{sy:.0f} {sx + turret:.0f},{sy + turret:.0f}"]
+    sx += turret + 0.5 * t
+    draws += ["-draw", f"circle {sx + 0.5 * t:.0f},{sy + 0.5 * t:.0f} {sx + t:.0f},{sy + 0.5 * t:.0f}"]
+    draws += ["-stroke", "none", "-fill", "rgba(60,140,220,1)", "-pointsize", f"{0.3 * t:.0f}", *font_args(),
+              "-draw", f"text {x:.0f},{sy - 0.15 * t:.0f} 'true size: MTB, destroyer, monitor, turret; a tree at most one tile'"]
     return draws
 
 
 def map_template(out):
-    t = MAP_PX[0] / MAP_TILES[0]
+    w, h = map_px(MAP_DRAW_SCALE)
+    t = TILE * MAP_DRAW_SCALE
     grid = []
-    for i in range(MAP_TILES[0] + 1):
-        grid += ["-draw", f"line {i * t:.0f},0 {i * t:.0f},{MAP_PX[1]}"]
-    for i in range(MAP_TILES[1] + 1):
-        grid += ["-draw", f"line 0,{i * t:.0f} {MAP_PX[0]},{i * t:.0f}"]
-    magick("-size", f"{MAP_PX[0]}x{MAP_PX[1]}", "xc:white", "-stroke", "rgba(0,0,0,0.08)",
-           "-strokewidth", "1", *grid, *geometry_draws(t), out)
-    print(f"{out}  {MAP_PX[0]}x{MAP_PX[1]}: water in the blue band, circles and square stay bare")
+    for i in range(MAP_TILES[0] + 2 * BLEED + 1):
+        grid += ["-draw", f"line {i * t:.0f},0 {i * t:.0f},{h}"]
+    for i in range(MAP_TILES[1] + 2 * BLEED + 1):
+        grid += ["-draw", f"line 0,{i * t:.0f} {w},{i * t:.0f}"]
+    magick("-size", f"{w}x{h}", "xc:white", "-stroke", "rgba(0,0,0,0.08)", "-strokewidth", "1",
+           *grid, *geometry_draws(t, "#bcd6f3"), *scale_references(t), out)
+    print(f"{out}  {w}x{h}: water in the blue band, circles and square stay bare, "
+          f"the blue frame is a 16:9 screen")
 
 
 def map_mask(out):
-    t = MAP_PX[0] / MAP_TILES[0]
-    magick("-size", f"{MAP_PX[0]}x{MAP_PX[1]}", "xc:none", *river_strokes(t, "white"), out)
-    print(f"{out}  {MAP_PX[0]}x{MAP_PX[1]}: white is water, the rest is land")
+    w, h = map_px(MAP_DRAW_SCALE)
+    magick("-size", f"{w}x{h}", "xc:none", *river_strokes(TILE * MAP_DRAW_SCALE, "white"), out)
+    print(f"{out}  {w}x{h}: white is water, the rest is land")
 
 
 def map_in(drawn):
+    """Takes a bleed canvas, or an old 16:9 map that gets paper around it."""
     w, h = size_of(drawn)
-    if abs(w / h - MAP_PX[0] / MAP_PX[1]) > 0.01:
-        sys.exit(f"{drawn} is {w}x{h}, not 16:9; draw on the template's canvas")
+    gw, gh = map_px(MAP_GAME_SCALE)
     out = os.path.join(ASSETS, "map", "background.png")
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    magick(drawn, "-alpha", "off", "-resize", f"{MAP_PX[0]}x{MAP_PX[1]}!", out)
+    if abs(w / h - gw / gh) < 0.01:
+        magick(drawn, "-alpha", "off", "-resize", f"{gw}x{gh}!", out)
+    elif abs(w / h - MAP_TILES[0] / MAP_TILES[1]) < 0.01:
+        pw, ph = (round(n * TILE * MAP_GAME_SCALE) for n in MAP_TILES)
+        magick(drawn, "-alpha", "off", "-resize", f"{pw}x{ph}!", "-background", "white",
+               "-gravity", "center", "-extent", f"{gw}x{gh}", out)
+    else:
+        sys.exit(f"{drawn} is {w}x{h}; draw on the canvas from map-template")
     print("wrote map/background.png")
     check()
 
 
 def overlay(map_png, out):
     w, _ = size_of(map_png)
-    magick(map_png, *geometry_draws(w / MAP_TILES[0]), out)
+    magick(map_png, *geometry_draws(w / (MAP_TILES[0] + 2 * BLEED), "rgba(40,120,220,0.3)"), out)
     print(f"{out}: water should fill the blue band, circles should sit on land")
 
 

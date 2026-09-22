@@ -4,6 +4,8 @@ pub const TILE_SIZE: f32 = 48.0;
 /// The world is a fixed 16:9 map; the camera scales to fit it.
 pub const MAP_WIDTH_TILES: f32 = 32.0;
 pub const MAP_HEIGHT_TILES: f32 = 18.0;
+/// Paper drawn around the playfield on each side, for screens wider or taller than 16:9.
+pub const MAP_BLEED_TILES: f32 = 1.0;
 pub const RIVER_HALF_WIDTH: f32 = 0.9 * TILE_SIZE;
 /// Click and draw radius of a build spot.
 pub const BUILD_SPOT_RADIUS: f32 = 0.5 * TILE_SIZE;

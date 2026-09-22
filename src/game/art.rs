@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use crate::balance::{
-    BoatModel, EnemyKind, TowerKind, BUILD_SPOT_RADIUS, MAP_HEIGHT_TILES, MAP_WIDTH_TILES,
-    TILE_SIZE, TOWER_TIERS,
+    BoatModel, EnemyKind, TowerKind, BUILD_SPOT_RADIUS, MAP_BLEED_TILES, MAP_HEIGHT_TILES,
+    MAP_WIDTH_TILES, TILE_SIZE, TOWER_TIERS,
 };
 use crate::game::destruction::{Crater, Debris};
 use crate::game::enemy::EnemyType;
@@ -258,7 +258,7 @@ fn show_spots(
     }
 }
 
-/// The painted map covers the whole world under everything; the greybox river hides.
+/// The painted map covers the world plus its bleed under everything; the greybox river hides.
 fn lay_background(art: Res<Art>, mut commands: Commands) {
     let Some(image) = art.image("map/background.png") else {
         return;
@@ -268,10 +268,9 @@ fn lay_background(art: Res<Art>, mut commands: Commands) {
         DespawnOnExit(Screen::Gameplay),
         Sprite {
             image,
-            custom_size: Some(Vec2::new(
-                MAP_WIDTH_TILES * TILE_SIZE,
-                MAP_HEIGHT_TILES * TILE_SIZE,
-            )),
+            custom_size: Some(
+                (Vec2::new(MAP_WIDTH_TILES, MAP_HEIGHT_TILES) + 2.0 * MAP_BLEED_TILES) * TILE_SIZE,
+            ),
             ..default()
         },
         Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),

@@ -35,9 +35,10 @@ BUILD_SPOTS = [(7.5, 5.5), (13, 4.5), (14, 10.5), (20.5, 5.5),
 HULL_BEAM_RATIO = 0.55
 UBOAT_BEAM = 22.0
 
-# Sheet pixels per world unit, and exported pixels per world unit (crisp on a 4K screen).
+# Sheet pixels per world unit, and exported pixels per world unit: a Retina MacBook shows
+# about 2.3 px per unit, and linear filtering stays clean up to about 2x reduction.
 DRAW_SCALE = 16
-SCALE = 4
+SCALE = 3
 SHEET_WIDTH = 4096
 SHEET_GAP = 96
 

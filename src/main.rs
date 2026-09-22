@@ -15,7 +15,7 @@ fn main() -> AppExit {
                     }),
                     ..default()
                 })
-                .set(ImagePlugin::default_nearest()),
+                .set(ImagePlugin::default_linear()),
         )
         .add_plugins(GamePlugin)
         .run()

@@ -23,7 +23,6 @@ use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Art>()
-        .add_systems(Startup, load)
         .add_systems(OnEnter(Screen::Gameplay), lay_background)
         .add_systems(Update, apply_font)
         .add_systems(
@@ -45,8 +44,9 @@ pub fn plugin(app: &mut App) {
         );
 }
 
-/// Handles for every asset that exists on disk. Missing files stay greybox.
-#[derive(Resource, Default)]
+/// Handles for every asset that exists on disk. Missing files stay greybox. Loaded when the
+/// plugin is built, so it is ready before the first `OnEnter`.
+#[derive(Resource)]
 pub struct Art {
     images: HashMap<String, Handle<Image>>,
     font: Option<Handle<Font>>,
@@ -138,20 +138,22 @@ fn exists(key: &str) -> bool {
         .any(|line| line.trim() == key)
 }
 
-fn load(mut art: ResMut<Art>, assets: Res<AssetServer>) {
-    for key in manifest() {
-        if exists(&key) {
-            art.images.insert(key.clone(), assets.load(key));
-        }
+impl FromWorld for Art {
+    fn from_world(world: &mut World) -> Self {
+        let assets = world.resource::<AssetServer>();
+        let images: HashMap<_, _> = manifest()
+            .into_iter()
+            .filter(|key| exists(key))
+            .map(|key| (key.clone(), assets.load(key)))
+            .collect();
+        let font = exists("fonts/pencil.ttf").then(|| assets.load("fonts/pencil.ttf"));
+        info!(
+            "art layer: {} images, font: {}",
+            images.len(),
+            font.is_some()
+        );
+        Self { images, font }
     }
-    if exists("fonts/pencil.ttf") {
-        art.font = Some(assets.load("fonts/pencil.ttf"));
-    }
-    info!(
-        "art layer: {} images, font: {}",
-        art.images.len(),
-        art.font.is_some()
-    );
 }
 
 fn dress(sprite: &mut Sprite, image: Option<Handle<Image>>) {

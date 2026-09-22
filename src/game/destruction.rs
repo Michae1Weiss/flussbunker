@@ -1,13 +1,14 @@
 //! What happens when an enemy sinks: burn, explode, break or capsize by size class
-//! and killing weapon; blasts that chain; debris that flies and lands. Sole writer of
-//! `Wreck`, `Drifting`, `Blast`, `Debris`, `Crater`, `Rng`. Rules: docs/design/destruction.md
+//! and killing weapon; blasts that chain; debris that flies and lands; remains that sink.
+//! Sole writer of `Wreck`, `Drifting`, `Blast`, `Debris`, `Crater`, `Sinking`, `Rng`.
+//! Rules: docs/design/destruction.md
 
 use bevy::prelude::*;
 
 use crate::balance::{
-    SizeClass, TowerKind, BLAST_DAMAGE, BLAST_RADIUS, CHAIN_DELAY, DEBRIS_CAP, DEBRIS_COUNT,
-    DEBRIS_GRAVITY, DEBRIS_TYPES, RIVER_HALF_WIDTH, TILE_SIZE, WRECK_DRIFT_SPEED, Z_DEBRIS,
-    Z_WRECK,
+    SizeClass, TowerKind, BLAST_DAMAGE, BLAST_RADIUS, CHAIN_DELAY, CRATER_CAP, DEBRIS_CAP,
+    DEBRIS_COUNT, DEBRIS_GRAVITY, DEBRIS_TYPES, RIVER_HALF_WIDTH, SINK_SECONDS, TILE_SIZE,
+    WRECK_CAP, WRECK_DRIFT_SPEED, Z_DEBRIS, Z_WRECK,
 };
 use crate::game::combat::{Damage, DamageKind, LastHitBy, Sunk, Weapon};
 use crate::game::enemy::{Enemy, EnemyType, Hull};
@@ -21,7 +22,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             FixedUpdate,
             (
-                (drift, fly_debris).in_set(Sim::Movement),
+                (drift, fly_debris, retire, sink).in_set(Sim::Movement),
                 detonate.in_set(Sim::Targeting),
             ),
         )
@@ -87,8 +88,30 @@ pub fn style(class: SizeClass, weapon: Weapon) -> Style {
 }
 
 /// Cosmetic remains: a silhouette under the water or a stranded hull on the bank.
+/// `born` is `Time::elapsed_secs`; the oldest stranded wrecks go first.
 #[derive(Component)]
-pub struct Wreck;
+pub struct Wreck {
+    born: f32,
+}
+
+/// Fades out and shrinks, then despawns. Never removed once added.
+#[derive(Component)]
+pub struct Sinking {
+    timer: Timer,
+    alpha: f32,
+}
+
+impl Sinking {
+    fn start(alpha: f32) -> Self {
+        Self {
+            timer: Timer::from_seconds(SINK_SECONDS, TimerMode::Once),
+            alpha,
+        }
+    }
+}
+
+const UNDERWATER: Color = Color::srgba(0.35, 0.42, 0.48, 0.8);
+const STRANDED: Color = Color::srgba(0.72, 0.66, 0.60, 0.9);
 
 /// Moves toward `to`, then stops.
 #[derive(Component)]
@@ -117,13 +140,17 @@ pub struct Debris {
     pub size: f32,
 }
 
+/// `born` as on `Wreck`.
 #[derive(Component)]
-pub struct Crater;
+pub struct Crater {
+    born: f32,
+}
 
 fn on_sunk(
     sunk: On<Sunk>,
     mut commands: Commands,
     mut rng: ResMut<Rng>,
+    time: Res<Time>,
     path: Res<RiverPath>,
     ships: Query<(&Transform, &Sprite, &Hull, &EnemyType, Option<&LastHitBy>), With<Enemy>>,
     airborne: Query<(), With<Debris>>,
@@ -136,6 +163,13 @@ fn on_sunk(
     let position = transform.translation.truncate();
     let heading = (transform.rotation * Vec3::Y).truncate();
     let size = sprite.custom_size.unwrap_or(Vec2::splat(hull.0));
+    let born = time.elapsed_secs();
+    let underwater = |position, rotation, size, image| {
+        (
+            wreck(position, rotation, size, image, UNDERWATER, born),
+            Sinking::start(UNDERWATER.alpha()),
+        )
+    };
 
     match style(class, weapon) {
         Style::Burn => {
@@ -148,18 +182,18 @@ fn on_sunk(
                     transform.rotation,
                     size,
                     sprite.image.clone(),
-                    Color::srgb(0.55, 0.25, 0.10),
+                    STRANDED,
+                    born,
                 ),
                 Drifting { to: bank },
             ));
         }
         Style::Explode => {
-            commands.spawn(wreck(
+            commands.spawn(underwater(
                 position,
                 transform.rotation,
                 size,
                 sprite.image.clone(),
-                Color::srgb(0.06, 0.12, 0.18),
             ));
             spawn_debris(
                 &mut commands,
@@ -174,12 +208,11 @@ fn on_sunk(
             for sign in [-1.0, 1.0] {
                 let half = position + heading * sign * size.y * 0.3;
                 let tilt = Quat::from_rotation_z(sign * 0.3) * transform.rotation;
-                commands.spawn(wreck(
+                commands.spawn(underwater(
                     half,
                     tilt,
                     Vec2::new(size.x, size.y * 0.45),
                     sprite.image.clone(),
-                    Color::srgb(0.06, 0.12, 0.18),
                 ));
             }
             let (low, high) = DEBRIS_COUNT[class.index()];
@@ -208,12 +241,11 @@ fn on_sunk(
             ));
         }
         Style::Capsize => {
-            commands.spawn(wreck(
+            commands.spawn(underwater(
                 position,
                 transform.rotation * Quat::from_rotation_z(0.5),
                 size,
                 sprite.image.clone(),
-                Color::srgb(0.06, 0.12, 0.18),
             ));
         }
     }
@@ -225,10 +257,11 @@ fn wreck(
     size: Vec2,
     image: Handle<Image>,
     color: Color,
+    born: f32,
 ) -> impl Bundle {
     (
         Name::new("Wreck"),
-        Wreck,
+        Wreck { born },
         DespawnOnExit(Screen::Gameplay),
         Sprite {
             image,
@@ -294,6 +327,53 @@ fn drift(
         } else {
             transform.translation += (to_bank.normalize() * step).extend(0.0);
         }
+    }
+}
+
+/// Keeps the newest `WRECK_CAP` stranded wrecks and `CRATER_CAP` craters; the rest sink.
+fn retire(
+    mut commands: Commands,
+    wrecks: Query<(Entity, &Wreck, &Sprite), Without<Sinking>>,
+    craters: Query<(Entity, &Crater, &Sprite), Without<Sinking>>,
+) {
+    let mut sink_oldest = |mut remains: Vec<(Entity, f32, f32)>, cap: usize| {
+        if remains.len() <= cap {
+            return;
+        }
+        remains.sort_by(|a, b| a.1.total_cmp(&b.1));
+        for &(entity, _, alpha) in &remains[..remains.len() - cap] {
+            commands.entity(entity).insert(Sinking::start(alpha));
+        }
+    };
+    sink_oldest(
+        wrecks
+            .iter()
+            .map(|(e, w, s)| (e, w.born, s.color.alpha()))
+            .collect(),
+        WRECK_CAP,
+    );
+    sink_oldest(
+        craters
+            .iter()
+            .map(|(e, c, s)| (e, c.born, s.color.alpha()))
+            .collect(),
+        CRATER_CAP,
+    );
+}
+
+fn sink(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut remains: Query<(Entity, &mut Sinking, &mut Sprite, &mut Transform)>,
+) {
+    for (entity, mut sinking, mut sprite, mut transform) in &mut remains {
+        if sinking.timer.tick(time.delta()).is_finished() {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        let left = 1.0 - sinking.timer.fraction();
+        sprite.color.set_alpha(sinking.alpha * left);
+        transform.scale = Vec3::splat(0.85 + 0.15 * left);
     }
 }
 
@@ -372,10 +452,12 @@ fn fly_debris(
         } else {
             commands.spawn((
                 Name::new("Crater"),
-                Crater,
+                Crater {
+                    born: time.elapsed_secs(),
+                },
                 DespawnOnExit(Screen::Gameplay),
                 Sprite {
-                    color: Color::srgb(0.10, 0.12, 0.09),
+                    color: Color::srgba(0.10, 0.12, 0.09, 0.5),
                     custom_size: Some(Vec2::splat(piece.size * 1.6)),
                     ..default()
                 },
@@ -410,6 +492,26 @@ mod tests {
         assert_eq!(style(SizeClass::Heavy, Weapon::Torpedo), Style::Break);
         assert_eq!(style(SizeClass::Capital, Weapon::Torpedo), Style::Break);
         assert_eq!(style(SizeClass::Capital, Weapon::Blast), Style::Break);
+    }
+
+    #[test]
+    fn remains_beyond_the_cap_sink_oldest_first() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        let wrecks: Vec<Entity> = (0..WRECK_CAP + 2)
+            .map(|i| {
+                world
+                    .spawn((Wreck { born: i as f32 }, Sprite::default()))
+                    .id()
+            })
+            .collect();
+        world.run_system_once(retire).unwrap();
+        let sinking: Vec<bool> = wrecks
+            .iter()
+            .map(|&e| world.entity(e).contains::<Sinking>())
+            .collect();
+        assert_eq!(sinking.iter().filter(|&&s| s).count(), 2);
+        assert!(sinking[0] && sinking[1] && !sinking[2]);
     }
 
     #[test]

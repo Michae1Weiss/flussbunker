@@ -178,6 +178,11 @@ pub const DEBRIS_TYPES: [(f32, f32); 6] = [
 /// World units per second squared for debris arcs.
 pub const DEBRIS_GRAVITY: f32 = 6.0 * TILE_SIZE;
 pub const WRECK_DRIFT_SPEED: f32 = 0.6 * TILE_SIZE;
+/// Seconds a wreck or crater takes to fade out once it sinks.
+pub const SINK_SECONDS: f32 = 3.0;
+/// Stranded wrecks and craters kept on the map; the oldest beyond this sink.
+pub const WRECK_CAP: usize = 10;
+pub const CRATER_CAP: usize = 24;
 
 pub struct EnemyStats {
     pub name: &'static str,

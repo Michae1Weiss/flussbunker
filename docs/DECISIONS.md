@@ -37,6 +37,7 @@ game before any further code. Decisions, with reasons:
 | Boat stops, turns on the spot, then moves (M1 feel test, 2026-09-17) | turning while moving read as a car, not a boat; reversing without stopping felt broken |
 | Docked hull repair is free and automatic; the only money mechanic of damage is the 30 % bill after a loss (M5) | two repair mechanics would double the rule; the shipyard menu holds only the next model |
 | Blast only on Break, not on Explode (M4 feel test) | the matrix as approved; chains come from torpedoes and the 15 cm, not from every kill |
+| Hulls x1.8, emplacements x1.5 (2026-09-22) | the PoC sizes put an MTB at 8 x 13 px at 1280x800, below what any drawing can make readable; the first art in the game showed it. Convoys get longer, debris hits big hulls more often |
 
 ## Rejected ideas
 

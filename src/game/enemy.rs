@@ -4,7 +4,9 @@
 
 use bevy::prelude::*;
 
-use crate::balance::{EnemyKind, CONVOY_GAP, ENEMY_TURN_RATE, PROLOGUE_CRUISE, TILE_SIZE, Z_ENEMY};
+use crate::balance::{
+    EnemyKind, CONVOY_GAP, ENEMY_TURN_RATE, HULL_BEAM_RATIO, PROLOGUE_CRUISE, TILE_SIZE, Z_ENEMY,
+};
 use crate::game::combat::{Armor, Health, Weapon};
 use crate::game::map::RiverPath;
 use crate::game::projectile::{shell_bundle, splash_bundle};
@@ -96,7 +98,7 @@ pub fn enemy_bundle(kind: EnemyKind, spawn: Vec2) -> impl Bundle {
         Along::default(),
         Sprite {
             color: Color::srgb(stats.rgb[0], stats.rgb[1], stats.rgb[2]),
-            custom_size: Some(Vec2::new(stats.size * 0.55, stats.size)),
+            custom_size: Some(Vec2::new(stats.size * HULL_BEAM_RATIO, stats.size)),
             ..default()
         },
         Transform::from_translation(spawn.extend(Z_ENEMY)),

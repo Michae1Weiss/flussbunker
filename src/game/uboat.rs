@@ -7,9 +7,9 @@ use bevy::prelude::*;
 use crate::balance::{
     BoatModel, SizeClass, DECK_GUN_DAMAGE, DECK_GUN_RANGE, DECK_GUN_RELOAD, DECK_GUN_SHELL_SPEED,
     DOCK_REPAIR_PER_SECOND, RAM_HEAVY_COST, RAM_LIGHT_COST, RAM_SHOVE, REPAIR_BILL, TILE_SIZE,
-    TORPEDO_RUN, TORPEDO_SPEED, UBOAT_FIRE_ALIGNMENT, UBOAT_LENGTH, UBOAT_MOVE_ALIGNMENT,
-    UBOAT_REARM_SECONDS, UBOAT_SALVO_SPACING, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TURN_RATE,
-    UNPAID_RETURN_HP, Z_UBOAT,
+    TORPEDO_RUN, TORPEDO_SPEED, UBOAT_BEAM, UBOAT_FIRE_ALIGNMENT, UBOAT_LENGTH, UBOAT_LENGTH_STEP,
+    UBOAT_MOVE_ALIGNMENT, UBOAT_REARM_SECONDS, UBOAT_SALVO_SPACING, UBOAT_SUBMERGED_SPEED_FACTOR,
+    UBOAT_TURN_RATE, UNPAID_RETURN_HP, Z_UBOAT,
 };
 use crate::game::combat::{Damage, DamageKind, Health, LastHitBy, Sunk, Weapon};
 use crate::game::economy::Treasury;
@@ -167,8 +167,8 @@ fn ready(seconds: f32) -> Timer {
 
 /// Greybox size per model; the image, if any, belongs to `art` and is kept.
 fn dress(sprite: &mut Sprite, model: BoatModel) {
-    let length = UBOAT_LENGTH + 4.0 * model as u8 as f32;
-    sprite.custom_size = Some(Vec2::new(12.0, length));
+    let length = UBOAT_LENGTH + UBOAT_LENGTH_STEP * model as u8 as f32;
+    sprite.custom_size = Some(Vec2::new(UBOAT_BEAM, length));
 }
 
 /// Spawns the flotilla's model at the bunker with `hp_fraction` of its hull.

@@ -216,7 +216,7 @@ impl EnemyKind {
                 speed: 2.45 * TILE_SIZE,
                 bounty: 4,
                 breach_damage: 1,
-                size: 16.0,
+                size: 29.0,
                 rgb: [0.55, 0.75, 0.55],
                 shelling: None,
             },
@@ -228,7 +228,7 @@ impl EnemyKind {
                 speed: 1.3 * TILE_SIZE,
                 bounty: 12,
                 breach_damage: 2,
-                size: 24.0,
+                size: 43.0,
                 rgb: [0.45, 0.62, 0.72],
                 shelling: None,
             },
@@ -240,7 +240,7 @@ impl EnemyKind {
                 speed: 0.8 * TILE_SIZE,
                 bounty: 20,
                 breach_damage: 5,
-                size: 30.0,
+                size: 54.0,
                 rgb: [0.62, 0.58, 0.40],
                 shelling: None,
             },
@@ -252,7 +252,7 @@ impl EnemyKind {
                 speed: 1.05 * TILE_SIZE,
                 bounty: 48,
                 breach_damage: 4,
-                size: 32.0,
+                size: 58.0,
                 rgb: [0.72, 0.35, 0.35],
                 shelling: Some(Shelling {
                     range: 2.6 * TILE_SIZE,
@@ -269,7 +269,7 @@ impl EnemyKind {
                 speed: 0.7 * TILE_SIZE,
                 bounty: PROLOGUE_BOUNTY,
                 breach_damage: 0,
-                size: 28.0,
+                size: 50.0,
                 rgb: [0.90, 0.75, 0.30],
                 shelling: None,
             },
@@ -281,7 +281,7 @@ impl EnemyKind {
                 speed: 0.63 * TILE_SIZE,
                 bounty: 100,
                 breach_damage: 8,
-                size: 40.0,
+                size: 72.0,
                 rgb: [0.80, 0.30, 0.45],
                 shelling: None,
             },
@@ -289,8 +289,15 @@ impl EnemyKind {
     }
 }
 
-/// Sprite length in world units; also the collision reach with ships.
-pub const UBOAT_LENGTH: f32 = 30.0;
+/// Sprite length of the smallest model in world units; also the collision reach with ships.
+pub const UBOAT_LENGTH: f32 = 54.0;
+/// Added per model step: VIIA, VIIC, IXC are 54, 61, 68 long.
+pub const UBOAT_LENGTH_STEP: f32 = 7.0;
+pub const UBOAT_BEAM: f32 = 22.0;
+/// Ship sprite width as a fraction of its hull length.
+pub const HULL_BEAM_RATIO: f32 = 0.55;
+/// Emplacement sprite side per tier, world units.
+pub const TOWER_SIZE: [f32; 3] = [36.0, 43.2, 50.4];
 pub const UBOAT_SUBMERGED_SPEED_FACTOR: f32 = 0.7;
 /// Fraction of the boat's nominal value billed when it returns after sinking.
 pub const REPAIR_BILL: f32 = 0.3;

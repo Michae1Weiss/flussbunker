@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 
 use crate::balance::{
-    TowerKind, SELL_REFUND, TILE_SIZE, TOWER_BUILD_SECONDS, TOWER_TIERS, Z_TOWER,
+    TowerKind, SELL_REFUND, TILE_SIZE, TOWER_BUILD_SECONDS, TOWER_SIZE, TOWER_TIERS, Z_TOWER,
 };
 use crate::game::combat::{Health, Weapon};
 use crate::game::economy::Treasury;
@@ -123,7 +123,7 @@ fn dress(sprite: &mut Sprite, kind: TowerKind, tier: u8, alpha: f32) {
         Color::WHITE
     }
     .with_alpha(alpha);
-    sprite.custom_size = Some(Vec2::splat(TILE_SIZE * (0.5 + 0.1 * tier as f32)));
+    sprite.custom_size = Some(Vec2::splat(TOWER_SIZE[tier as usize]));
 }
 
 pub fn tower_bundle(kind: TowerKind, position: Vec2) -> impl Bundle {

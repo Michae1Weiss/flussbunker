@@ -250,7 +250,7 @@ impl EnemyKind {
                 shelling: None,
             },
             EnemyKind::Destroyer => EnemyStats {
-                name: "Zerstoerer",
+                name: "Zerstörer",
                 class: SizeClass::Heavy,
                 health: 380.0,
                 armor: 12.0,
@@ -424,7 +424,7 @@ pub struct Wave {
 /// Twelve waves from docs/balance: fast groups first so slow ships form the tail of the convoy.
 pub const WAVES: &[Wave] = &[
     Wave {
-        name: "Aufklaerung",
+        name: "Aufklärung",
         groups: &[Group {
             kind: EnemyKind::MotorTorpedoBoat,
             count: 6,
@@ -459,7 +459,7 @@ pub const WAVES: &[Wave] = &[
         ],
     },
     Wave {
-        name: "Zerstoerer voraus",
+        name: "Zerstörer voraus",
         groups: &[
             Group {
                 kind: EnemyKind::MotorTorpedoBoat,
@@ -579,7 +579,7 @@ pub const WAVES: &[Wave] = &[
         ],
     },
     Wave {
-        name: "Grossangriff",
+        name: "Großangriff",
         groups: &[
             Group {
                 kind: EnemyKind::MotorTorpedoBoat,

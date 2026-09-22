@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use crate::balance::{TowerKind, BUILD_SPOT_RADIUS, SELL_HOLD_SECONDS, UBOAT_LENGTH};
 use crate::game::map::{BuildSpot, RiverPath};
 use crate::game::notes::ShowNote;
+use crate::game::palette::{INK, RED};
 use crate::game::radial::{Action, CloseMenu, Menu, OpenMenu, Target};
 use crate::game::tower::Occupied;
 use crate::game::uboat::{Station, UBoat};
@@ -266,14 +267,14 @@ fn draw_hover(
         gizmos.circle_2d(
             Isometry2d::from_translation(transform.translation.truncate()),
             BUILD_SPOT_RADIUS,
-            Color::srgb(0.85, 0.85, 0.6),
+            INK,
         );
         return;
     }
 
     if path.contains(world) {
         let (along, _) = path.project(world);
-        let lane = Color::srgb(0.55, 0.90, 1.0);
+        let lane = RED;
         let here = path.point_at(along);
         gizmos.circle_2d(Isometry2d::from_translation(here), 6.0, lane);
         gizmos.line_2d(here, path.point_at(path.straight_end(along, false)), lane);

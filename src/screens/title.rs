@@ -21,17 +21,17 @@ fn spawn_title(mut commands: Commands) {
         children![
             line("FLUSSBUNKER", 52.0, [0.90, 0.86, 0.70]),
             line(
-                "Halte den Fluss. U-96 gehoert dir - verliere sie nicht.",
+                "Halte den Fluss. U-96 gehört dir - verliere sie nicht.",
                 20.0,
                 [0.72, 0.76, 0.80]
             ),
             line(
-                "Linksklick auf einen Bauplatz: Radialmenue (bauen, ausbauen, verkaufen)",
+                "Linksklick auf einen Bauplatz: Radialmenü (bauen, ausbauen, verkaufen)",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),
             line(
-                "Linksklick auf den Fluss: U-96 faehrt dorthin",
+                "Linksklick auf den Fluss: U-96 fährt dorthin",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),
@@ -41,7 +41,7 @@ fn spawn_title(mut commands: Commands) {
                 [0.66, 0.70, 0.74]
             ),
             line(
-                "Enter  naechste Welle     F  doppeltes Tempo     Tab  taktische Karte     Esc  Pause",
+                "Enter  nächste Welle     F  doppeltes Tempo     Tab  taktische Karte     Esc  Pause",
                 18.0,
                 [0.66, 0.70, 0.74]
             ),
@@ -56,7 +56,7 @@ fn spawn_title(mut commands: Commands) {
                 [0.60, 0.88, 1.00]
             ),
             line(
-                "Zerstoerer sind gepanzert und schiessen sich auf dich ein. Dann: tauchen.",
+                "Zerstörer sind gepanzert und schießen sich auf dich ein. Dann: tauchen.",
                 19.0,
                 [0.82, 0.55, 0.50]
             ),

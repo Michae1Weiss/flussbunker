@@ -15,7 +15,7 @@ use crate::game::destruction::{Crater, Debris};
 use crate::game::enemy::EnemyType;
 use crate::game::map::{BuildSpot, BunkerSprite, RiverSegment};
 use crate::game::projectile::{Lifetime, Shell, Torpedo};
-use crate::game::tower::{Tier, Tower, TowerType};
+use crate::game::tower::{Occupied, Tier, Tower, TowerType};
 use crate::game::uboat::{Model, UBoat};
 use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
@@ -243,13 +243,14 @@ fn dress_spots(art: Res<Art>, mut commands: Commands, spots: Query<Entity, Added
     }
 }
 
+/// Hidden in the prologue and under a turret.
 fn show_spots(
     wave: Option<Res<WaveState>>,
-    mut spots: Query<&mut Visibility, (With<BuildSpot>, With<Sprite>)>,
+    mut spots: Query<(&mut Visibility, Has<Occupied>), (With<BuildSpot>, With<Sprite>)>,
 ) {
-    let hidden = wave.is_some_and(|w| w.prologue);
-    for mut visibility in &mut spots {
-        *visibility = if hidden {
+    let prologue = wave.is_some_and(|w| w.prologue);
+    for (mut visibility, occupied) in &mut spots {
+        *visibility = if prologue || occupied {
             Visibility::Hidden
         } else {
             Visibility::Visible

@@ -12,6 +12,7 @@ use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, Shelling};
 use crate::game::input::ToggleOverlay;
 use crate::game::map::RiverPath;
+use crate::game::palette::{FAINT, GAIN, INK, NOTE, PENCIL, RED};
 use crate::game::tower::{Gun, Range, Targeting, Tower};
 use crate::game::uboat::{Flotilla, Heading, Station, Torpedoes, Trim, UBoat};
 use crate::game::wave::WaveState;
@@ -25,6 +26,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             (
+                scale_ui,
                 toggle_overlay,
                 tween_marks,
                 update_rm_note,
@@ -63,6 +65,10 @@ struct Transaction(Timer);
 #[derive(Component)]
 struct RmNote;
 
+/// The paper behind the RM figure; transactions float from its edge.
+#[derive(Component)]
+struct RmPaper;
+
 #[derive(Component)]
 struct WaveNote;
 
@@ -76,59 +82,70 @@ pub struct OverlayLabel {
     offset: Vec2,
 }
 
-const PAPER: Color = Color::srgb(0.93, 0.88, 0.72);
-const INK: Color = Color::srgb(0.16, 0.13, 0.10);
+/// Logical window height the UI sizes are designed for.
+const UI_REFERENCE_HEIGHT: f32 = 800.0;
 
-fn paper(size: f32) -> impl Bundle {
-    (
+/// A paper note pinned at `place`, its text in a child carrying `marker`.
+fn spawn_note(
+    commands: &mut Commands,
+    name: &'static str,
+    place: Node,
+    size: f32,
+    marker: impl Bundle,
+) -> Entity {
+    let paper = commands
+        .spawn((
+            Name::new(name),
+            DespawnOnExit(Screen::Gameplay),
+            BackgroundColor(NOTE),
+            Node {
+                position_type: PositionType::Absolute,
+                padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
+                ..place
+            },
+        ))
+        .id();
+    commands.spawn((
+        marker,
         Text::new(String::new()),
         TextFont {
             font_size: FontSize::Px(size),
             ..default()
         },
         TextColor(INK),
-        BackgroundColor(PAPER),
-        Node {
-            position_type: PositionType::Absolute,
-            padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
-            ..default()
-        },
-    )
+        ChildOf(paper),
+    ));
+    paper
 }
 
 fn spawn_notes(mut commands: Commands) {
-    let mut rm = commands.spawn((
-        Name::new("RM note"),
-        DespawnOnExit(Screen::Gameplay),
-        RmNote,
-        paper(22.0),
-    ));
-    rm.entry::<Node>().and_modify(|mut node| {
-        node.top = Val::Px(10.0);
-        node.left = Val::Px(12.0);
-    });
+    let top_left = Node {
+        top: Val::Px(10.0),
+        left: Val::Px(12.0),
+        ..default()
+    };
+    let rm = spawn_note(&mut commands, "RM note", top_left, 26.0, RmNote);
+    commands.entity(rm).insert(RmPaper);
+    let top_right = Node {
+        top: Val::Px(10.0),
+        right: Val::Px(12.0),
+        ..default()
+    };
+    spawn_note(&mut commands, "Wave note", top_right, 19.0, WaveNote);
+    let bottom_left = Node {
+        bottom: Val::Px(10.0),
+        left: Val::Px(12.0),
+        ..default()
+    };
+    spawn_note(&mut commands, "Boat note", bottom_left, 19.0, BoatNote);
+}
 
-    let mut wave = commands.spawn((
-        Name::new("Wave note"),
-        DespawnOnExit(Screen::Gameplay),
-        WaveNote,
-        paper(15.0),
-    ));
-    wave.entry::<Node>().and_modify(|mut node| {
-        node.top = Val::Px(10.0);
-        node.right = Val::Px(12.0);
-    });
-
-    let mut boat = commands.spawn((
-        Name::new("Boat note"),
-        DespawnOnExit(Screen::Gameplay),
-        BoatNote,
-        paper(15.0),
-    ));
-    boat.entry::<Node>().and_modify(|mut node| {
-        node.bottom = Val::Px(10.0);
-        node.left = Val::Px(12.0);
-    });
+/// Sizes are designed at 800 logical pixels high; larger windows scale the UI up.
+fn scale_ui(window: Single<&Window, Changed<Window>>, mut scale: ResMut<UiScale>) {
+    let wanted = (window.height() / UI_REFERENCE_HEIGHT).clamp(1.0, 2.0);
+    if (scale.0 - wanted).abs() > 0.01 {
+        scale.0 = wanted;
+    }
 }
 
 fn reset_marks(mut displayed: ResMut<DisplayedMarks>, treasury: Res<Treasury>) {
@@ -147,7 +164,7 @@ fn tween_marks(
     treasury: Res<Treasury>,
     mut displayed: ResMut<DisplayedMarks>,
     mut commands: Commands,
-    notes: Query<Entity, With<RmNote>>,
+    notes: Query<Entity, With<RmPaper>>,
 ) {
     if treasury.marks != displayed.last {
         let delta = treasury.marks as i64 - displayed.last as i64;
@@ -159,14 +176,10 @@ fn tween_marks(
                 DespawnOnExit(Screen::Gameplay),
                 Text::new(format!("{delta:+}")),
                 TextFont {
-                    font_size: FontSize::Px(16.0),
+                    font_size: FontSize::Px(20.0),
                     ..default()
                 },
-                TextColor(if delta > 0 {
-                    Color::srgb(0.20, 0.45, 0.15)
-                } else {
-                    Color::srgb(0.65, 0.15, 0.10)
-                }),
+                TextColor(if delta > 0 { GAIN } else { RED }),
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(100.0),
@@ -218,7 +231,7 @@ fn update_wave_note(
     } else if wave.running {
         String::new()
     } else {
-        format!("[Enter] naechste: {}", wave.preview())
+        format!("[Enter] nächste: {}", wave.preview())
     };
     let pace = if time.is_paused() {
         "PAUSE [Esc]"
@@ -250,7 +263,7 @@ fn update_boat_note(
 ) {
     let stats = flotilla.model.stats();
     let Ok((health, torpedoes, trim)) = boats.single() else {
-        note.0 = format!("{} gesunken\nkehrt nach der Welle zurueck", stats.name);
+        note.0 = format!("{} gesunken\nkehrt nach der Welle zurück", stats.name);
         return;
     };
 
@@ -274,12 +287,8 @@ fn draw_health_bars(mut gizmos: Gizmos, boats: Query<(&Transform, &Health), With
             continue;
         }
         let base = transform.translation.truncate() + Vec2::new(-14.0, -20.0);
-        gizmos.line_2d(base, base + Vec2::X * 28.0, Color::srgb(0.25, 0.08, 0.08));
-        gizmos.line_2d(
-            base,
-            base + Vec2::X * 28.0 * fraction,
-            Color::srgb(0.90, 0.30, 0.25),
-        );
+        gizmos.line_2d(base, base + Vec2::X * 28.0, FAINT);
+        gizmos.line_2d(base, base + Vec2::X * 28.0 * fraction, RED);
     }
 }
 
@@ -293,7 +302,7 @@ fn draw_route(
     if !(overlay.on || (!wave.running && !wave.prologue)) {
         return;
     }
-    let ink = Color::srgba(0.85, 0.85, 0.7, 0.35);
+    let ink = FAINT;
     let mut s = 0.0;
     let dash = 18.0;
     while s < path.length() {
@@ -317,7 +326,7 @@ fn draw_overlay(
     if !overlay.on {
         return;
     }
-    let ink = Color::srgba(0.85, 0.85, 0.7, 0.5);
+    let ink = PENCIL;
     for (transform, range, gun) in &towers {
         let at = transform.translation.truncate();
         gizmos.circle_2d(Isometry2d::from_translation(at), range.0, ink);
@@ -325,14 +334,14 @@ fn draw_overlay(
             Isometry2d::from_translation(at),
             std::f32::consts::TAU * gun.reload.fraction(),
             20.0,
-            Color::srgb(1.0, 0.95, 0.65),
+            INK,
         );
     }
     for (transform, shelling) in &shellers {
         gizmos.circle_2d(
             Isometry2d::from_translation(transform.translation.truncate()),
             shelling.range,
-            Color::srgba(0.9, 0.3, 0.3, 0.5),
+            RED.with_alpha(0.5),
         );
     }
     for (transform, station, heading) in &boats {
@@ -346,7 +355,7 @@ fn draw_overlay(
         let end = path.straight_end(station.along, axis.dot(tangent) > 0.0);
         let to = path.point_at(end);
         let run = from.distance(to).min(TORPEDO_RUN);
-        gizmos.line_2d(from, from + axis * run, Color::srgb(0.55, 0.90, 1.0));
+        gizmos.line_2d(from, from + axis * run, RED);
     }
 }
 
@@ -364,10 +373,11 @@ fn attach_labels(
             OverlayLabel { subject, offset },
             Text2d::new(String::new()),
             TextFont {
-                font_size: FontSize::Px(12.0),
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
-            TextColor(Color::srgb(0.95, 0.95, 0.85)),
+            TextColor(INK),
+            TextBackgroundColor(NOTE),
             Visibility::Hidden,
             Transform::from_translation(Vec3::new(0.0, 0.0, Z_UI)),
         ));

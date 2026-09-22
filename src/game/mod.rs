@@ -14,6 +14,7 @@ pub mod input;
 pub mod juice;
 pub mod map;
 pub mod notes;
+pub mod palette;
 pub mod projectile;
 pub mod radial;
 pub mod telemetry;

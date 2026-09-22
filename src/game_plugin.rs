@@ -48,7 +48,7 @@ pub fn harness(app: &mut App) {
 }
 
 fn core(app: &mut App) {
-    app.insert_resource(ClearColor(Color::srgb(0.16, 0.20, 0.15)))
+    app.insert_resource(ClearColor(game::palette::PAPER))
         .insert_resource(Time::<Fixed>::from_hz(64.0))
         .add_systems(Startup, spawn_camera);
 

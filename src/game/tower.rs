@@ -12,6 +12,7 @@ use crate::game::economy::Treasury;
 use crate::game::enemy::{Along, Enemy};
 use crate::game::input::{BuildTower, CycleTargeting, SellTower, UpgradeTower};
 use crate::game::map::BuildSpot;
+use crate::game::palette::INK;
 use crate::game::projectile::shell_bundle;
 use crate::game_plugin::{Frame, Sim};
 use crate::screens::Screen;
@@ -83,9 +84,9 @@ impl Targeting {
     pub fn label(self) -> &'static str {
         match self {
             Targeting::First => "Vorderstes",
-            Targeting::Strongest => "Staerkstes",
-            Targeting::Weakest => "Schwaechstes",
-            Targeting::Nearest => "Naechstes",
+            Targeting::Strongest => "Stärkstes",
+            Targeting::Weakest => "Schwächstes",
+            Targeting::Nearest => "Nächstes",
         }
     }
 }
@@ -234,7 +235,7 @@ fn draw_construction(mut gizmos: Gizmos, sites: Query<(&Transform, &Constructing
             Isometry2d::from_translation(transform.translation.truncate()),
             std::f32::consts::TAU * constructing.0.fraction(),
             TILE_SIZE * 0.5,
-            Color::srgb(0.85, 0.85, 0.6),
+            INK,
         );
     }
 }

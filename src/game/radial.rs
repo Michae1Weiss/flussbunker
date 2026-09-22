@@ -9,6 +9,7 @@ use crate::balance::{
 };
 use crate::game::economy::Treasury;
 use crate::game::input::{cursor_world, SellHold};
+use crate::game::palette::{FAINT, INK, NOTE, PENCIL, RED};
 use crate::game::tower::{Investment, Targeting, Tier, TowerType};
 use crate::game::uboat::Flotilla;
 use crate::game::wave::WaveState;
@@ -135,11 +136,12 @@ fn open(mut requests: MessageReader<OpenMenu>, mut menu: ResMut<Menu>, mut comma
                 .spawn((
                     Text2d::new(String::new()),
                     TextFont {
-                        font_size: FontSize::Px(16.0),
+                        font_size: FontSize::Px(17.0),
                         ..default()
                     },
                     TextLayout::new(Justify::Center, bevy::text::LineBreak::WordBoundary),
-                    TextColor(Color::WHITE),
+                    TextColor(INK),
+                    TextBackgroundColor(NOTE),
                     Transform::from_translation(offset.extend(1.0)),
                     ChildOf(root),
                 ))
@@ -225,11 +227,7 @@ fn refresh(
         entry.enabled = enabled;
         if let Ok((mut label, mut color)) = labels.get_mut(entry.label) {
             label.0 = text;
-            color.0 = if enabled {
-                Color::WHITE
-            } else {
-                Color::srgb(0.5, 0.5, 0.5)
-            };
+            color.0 = if enabled { INK } else { PENCIL };
         }
     }
 }
@@ -253,9 +251,9 @@ fn draw(
         let centre = open.anchor + entry.offset;
         let is_hovered = hovered == Some(entry.action);
         let color = match (entry.enabled, is_hovered) {
-            (false, _) => Color::srgb(0.45, 0.45, 0.45),
-            (true, true) => Color::srgb(1.0, 0.95, 0.65),
-            (true, false) => Color::srgb(0.85, 0.85, 0.6),
+            (false, _) => FAINT,
+            (true, true) => RED,
+            (true, false) => INK,
         };
         gizmos.circle_2d(
             Isometry2d::from_translation(centre),
@@ -268,7 +266,7 @@ fn draw(
                 Isometry2d::from_translation(centre),
                 std::f32::consts::TAU * hold.progress,
                 RADIAL_ENTRY_RADIUS + 4.0,
-                Color::srgb(0.9, 0.4, 0.3),
+                RED,
             );
         }
 

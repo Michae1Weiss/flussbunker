@@ -139,15 +139,15 @@ fn kind_name(kind: TowerKind) -> &'static str {
     }
 }
 
-fn tower_key(kind: TowerKind, tier: u8) -> String {
+pub fn tower_key(kind: TowerKind, tier: u8) -> String {
     format!("sprites/turrets/{}_{tier}.png", kind_name(kind))
 }
 
-fn barrel_key(kind: TowerKind, tier: u8) -> String {
+pub fn barrel_key(kind: TowerKind, tier: u8) -> String {
     format!("sprites/barrels/{}_{tier}.png", kind_name(kind))
 }
 
-fn boat_key(model: BoatModel) -> &'static str {
+pub fn boat_key(model: BoatModel) -> &'static str {
     match model {
         BoatModel::ViiA => "sprites/boats/viia.png",
         BoatModel::ViiC => "sprites/boats/viic.png",

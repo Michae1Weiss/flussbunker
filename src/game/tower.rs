@@ -18,6 +18,7 @@ use crate::game::input::{BuildTower, CycleTargeting, SellTower, UpgradeTower};
 use crate::game::map::BuildSpot;
 use crate::game::palette::INK;
 use crate::game::projectile::shell_bundle;
+use crate::game::stroke::Strokes;
 use crate::game_plugin::{Frame, Sim};
 use crate::screens::Screen;
 
@@ -319,12 +320,12 @@ fn finish_construction(
     }
 }
 
-fn draw_construction(mut gizmos: Gizmos, sites: Query<(&Transform, &Constructing)>) {
+fn draw_construction(mut strokes: ResMut<Strokes>, sites: Query<(&Transform, &Constructing)>) {
     for (transform, constructing) in &sites {
-        gizmos.arc_2d(
-            Isometry2d::from_translation(transform.translation.truncate()),
-            std::f32::consts::TAU * constructing.0.fraction(),
+        strokes.arc(
+            transform.translation.truncate(),
             TILE_SIZE * 0.5,
+            std::f32::consts::TAU * constructing.0.fraction(),
             INK,
         );
     }

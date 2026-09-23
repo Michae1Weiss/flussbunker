@@ -9,6 +9,7 @@ use crate::balance::{
     Z_TOWER,
 };
 use crate::game::palette::FAINT;
+use crate::game::stroke::Strokes;
 use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
 use crate::screens::Screen;
@@ -216,7 +217,7 @@ fn spawn_build_spots(mut commands: Commands) {
 
 /// Greybox only: a drawn spot sprite replaces the circle.
 fn draw_build_spots(
-    mut gizmos: Gizmos,
+    mut strokes: ResMut<Strokes>,
     wave: Res<WaveState>,
     spots: Query<&Transform, (With<BuildSpot>, Without<Sprite>)>,
 ) {
@@ -224,11 +225,7 @@ fn draw_build_spots(
         return;
     }
     for transform in &spots {
-        gizmos.circle_2d(
-            Isometry2d::from_translation(transform.translation.truncate()),
-            BUILD_SPOT_RADIUS,
-            FAINT,
-        );
+        strokes.circle(transform.translation.truncate(), BUILD_SPOT_RADIUS, FAINT);
     }
 }
 

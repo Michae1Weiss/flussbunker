@@ -16,6 +16,7 @@ use crate::game::enemy::{Enemy, Shelling};
 use crate::game::input::ToggleOverlay;
 use crate::game::map::RiverPath;
 use crate::game::palette::{FAINT, GAIN, INK, NOTE, PENCIL, RED};
+use crate::game::stroke::Strokes;
 use crate::game::tower::{Gun, Range, Targeting, Tower};
 use crate::game::uboat::{Flotilla, Heading, Station, Torpedoes, Trim, UBoat};
 use crate::game::wave::WaveState;
@@ -373,21 +374,24 @@ fn update_boat_note(
     note.0 = lines.join("\n");
 }
 
-fn draw_health_bars(mut gizmos: Gizmos, boats: Query<(&Transform, &Health), With<Enemy>>) {
+fn draw_health_bars(
+    mut strokes: ResMut<Strokes>,
+    boats: Query<(&Transform, &Health), With<Enemy>>,
+) {
     for (transform, health) in &boats {
         let fraction = health.fraction();
         if fraction >= 1.0 {
             continue;
         }
         let base = transform.translation.truncate() + Vec2::new(-14.0, -20.0);
-        gizmos.line_2d(base, base + Vec2::X * 28.0, FAINT);
-        gizmos.line_2d(base, base + Vec2::X * 28.0 * fraction, RED);
+        strokes.line(base, base + Vec2::X * 28.0, FAINT);
+        strokes.line(base, base + Vec2::X * 28.0 * fraction, RED);
     }
 }
 
 /// The enemy route: always faintly in the prep phase, otherwise only in the overlay.
 fn draw_route(
-    mut gizmos: Gizmos,
+    mut strokes: ResMut<Strokes>,
     path: Res<RiverPath>,
     wave: Res<WaveState>,
     overlay: Res<Overlay>,
@@ -399,7 +403,7 @@ fn draw_route(
     let mut s = 0.0;
     let dash = 18.0;
     while s < path.length() {
-        gizmos.line_2d(
+        strokes.line(
             path.point_at(s),
             path.point_at((s + dash * 0.6).min(path.length())),
             ink,
@@ -409,7 +413,7 @@ fn draw_route(
 }
 
 fn draw_overlay(
-    mut gizmos: Gizmos,
+    mut strokes: ResMut<Strokes>,
     overlay: Res<Overlay>,
     path: Res<RiverPath>,
     towers: Query<(&Transform, &Range, &Gun), With<Tower>>,
@@ -422,17 +426,12 @@ fn draw_overlay(
     let ink = PENCIL;
     for (transform, range, gun) in &towers {
         let at = transform.translation.truncate();
-        gizmos.circle_2d(Isometry2d::from_translation(at), range.0, ink);
-        gizmos.arc_2d(
-            Isometry2d::from_translation(at),
-            std::f32::consts::TAU * gun.reload.fraction(),
-            20.0,
-            INK,
-        );
+        strokes.circle(at, range.0, ink);
+        strokes.arc(at, 20.0, std::f32::consts::TAU * gun.reload.fraction(), INK);
     }
     for (transform, shelling) in &shellers {
-        gizmos.circle_2d(
-            Isometry2d::from_translation(transform.translation.truncate()),
+        strokes.circle(
+            transform.translation.truncate(),
             shelling.range,
             RED.with_alpha(0.5),
         );
@@ -448,7 +447,7 @@ fn draw_overlay(
         let end = path.straight_end(station.along, axis.dot(tangent) > 0.0);
         let to = path.point_at(end);
         let run = from.distance(to).min(TORPEDO_RUN);
-        gizmos.line_2d(from, from + axis * run, RED);
+        strokes.line(from, from + axis * run, RED);
     }
 }
 

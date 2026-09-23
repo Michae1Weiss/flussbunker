@@ -108,8 +108,9 @@ pub fn paper_backing(art: &Art, key: &str) -> Option<impl Bundle> {
     ))
 }
 
-/// A label on the map, on paper: the drawn tag stretched behind the text, or flat paper.
-/// The paper follows the text's alpha, so a fading label fades its paper.
+/// A label on the map, on paper: a sprite just behind the text, the drawn 9-slice tag or
+/// flat paper, sized to the text. The paper follows the text's alpha, so a fading label
+/// fades its paper. (Not `TextBackgroundColor`: at the text's own depth it can cover it.)
 #[derive(Component)]
 pub struct PaperTag;
 
@@ -301,63 +302,56 @@ fn dress_barrels(
 
 fn dress_tags(art: Res<Art>, mut commands: Commands, tags: Query<Entity, Added<PaperTag>>) {
     for text in &tags {
-        match art.image("ui/tag.png") {
+        let sprite = match art.image("ui/tag.png") {
             Some(image) => {
                 let (x, y) = (32.0 * 8.0 * 0.25, 16.0 * 8.0 * 0.25);
-                let sheet = commands
-                    .spawn((
-                        Name::new("Tag"),
-                        Sprite {
-                            image,
-                            image_mode: SpriteImageMode::Sliced(TextureSlicer {
-                                border: BorderRect {
-                                    min_inset: Vec2::new(x, y),
-                                    max_inset: Vec2::new(x, y),
-                                },
-                                max_corner_scale: 0.15,
-                                ..default()
-                            }),
-                            custom_size: Some(Vec2::ZERO),
-                            ..default()
+                Sprite {
+                    image,
+                    image_mode: SpriteImageMode::Sliced(TextureSlicer {
+                        border: BorderRect {
+                            min_inset: Vec2::new(x, y),
+                            max_inset: Vec2::new(x, y),
                         },
-                        Transform::from_translation(Vec3::Z * -0.01),
-                        ChildOf(text),
-                    ))
-                    .id();
-                commands.entity(text).insert(TagSheet(sheet));
+                        max_corner_scale: 0.15,
+                        ..default()
+                    }),
+                    custom_size: Some(Vec2::ZERO),
+                    ..default()
+                }
             }
-            None => {
-                commands.entity(text).insert(TextBackgroundColor(NOTE));
-            }
-        }
+            None => Sprite {
+                color: NOTE,
+                custom_size: Some(Vec2::ZERO),
+                ..default()
+            },
+        };
+        let sheet = commands
+            .spawn((
+                Name::new("Tag"),
+                sprite,
+                Transform::from_translation(Vec3::Z * -0.1),
+                ChildOf(text),
+            ))
+            .id();
+        commands.entity(text).insert(TagSheet(sheet));
     }
 }
 
 fn fit_tags(
     texts: Query<
-        (&TextLayoutInfo, &TextColor, Option<&TagSheet>),
-        (
-            With<PaperTag>,
-            Or<(Changed<TextLayoutInfo>, Changed<TextColor>)>,
-        ),
+        (&TextLayoutInfo, &TextColor, &TagSheet),
+        Or<(Changed<TextLayoutInfo>, Changed<TextColor>, Added<TagSheet>)>,
     >,
-    mut backgrounds: Query<(&TextColor, &mut TextBackgroundColor), With<PaperTag>>,
     mut sheets: Query<&mut Sprite>,
 ) {
     for (layout, color, sheet) in &texts {
-        if let Some(mut sprite) = sheet.and_then(|s| sheets.get_mut(s.0).ok()) {
+        if let Ok(mut sprite) = sheets.get_mut(sheet.0) {
             sprite.custom_size = Some(if layout.size.x > 0.0 {
                 layout.size + TAG_PADDING * 2.0
             } else {
                 Vec2::ZERO
             });
-            sprite.color = Color::WHITE.with_alpha(color.0.alpha());
-        }
-    }
-    for (color, mut background) in &mut backgrounds {
-        let alpha = color.0.alpha();
-        if background.0.alpha() != alpha {
-            background.0.set_alpha(alpha);
+            sprite.color.set_alpha(color.0.alpha());
         }
     }
 }

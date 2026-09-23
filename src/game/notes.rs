@@ -12,6 +12,7 @@ use crate::game::art::PaperTag;
 use crate::game::map::BuildSpot;
 use crate::game::palette::{INK, RED};
 use crate::game::projectile::TorpedoLost;
+use crate::game::stroke::Strokes;
 use crate::game::tower::{Tier, Tower};
 use crate::game::uboat::{Model, Station, Torpedoes, UBoat};
 use crate::game::wave::WaveState;
@@ -142,7 +143,7 @@ fn prologue_hints(
 
 /// Wave 1 prep: every spot pulses. Wave 3 prep: one turret asks to be upgraded.
 fn prep_hints(
-    mut gizmos: Gizmos,
+    mut strokes: ResMut<Strokes>,
     time: Res<Time>,
     notes: Res<Notes>,
     wave: Res<WaveState>,
@@ -157,11 +158,7 @@ fn prep_hints(
         let pulse = 1.0 + 0.25 * (time.elapsed_secs() * 4.0).sin();
         for transform in &spots {
             let at = transform.translation.truncate();
-            gizmos.circle_2d(
-                Isometry2d::from_translation(at),
-                BUILD_SPOT_RADIUS * pulse,
-                RED,
-            );
+            strokes.circle(at, BUILD_SPOT_RADIUS * pulse, RED);
         }
         if let Some(transform) = spots.iter().next() {
             hints.write(Hint {

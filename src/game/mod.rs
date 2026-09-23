@@ -20,6 +20,7 @@ pub mod notes;
 pub mod palette;
 pub mod projectile;
 pub mod radial;
+pub mod stroke;
 pub mod telemetry;
 pub mod tower;
 pub mod uboat;
@@ -43,6 +44,7 @@ pub fn plugin(app: &mut App) {
         fx::plugin,
         audio::plugin,
         banner::plugin,
+        stroke::plugin,
         radial::plugin,
         notes::plugin,
         juice::plugin,

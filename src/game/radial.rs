@@ -13,6 +13,7 @@ use crate::game::art::{barrel_key, boat_key, tower_key, Art};
 use crate::game::economy::Treasury;
 use crate::game::input::{Hovered, SellHold};
 use crate::game::palette::{FAINT, INK, NOTE, PENCIL, RED};
+use crate::game::stroke::Strokes;
 use crate::game::tower::{Investment, Targeting, Tier, TowerType};
 use crate::game::uboat::Flotilla;
 use crate::game::wave::WaveState;
@@ -423,7 +424,7 @@ fn refresh(
 }
 
 fn draw(
-    mut gizmos: Gizmos,
+    mut strokes: ResMut<Strokes>,
     menu: Res<Menu>,
     hold: Res<SellHold>,
     hovered: Res<Hovered>,
@@ -442,17 +443,13 @@ fn draw(
             (true, true) => RED,
             (true, false) => INK,
         };
-        gizmos.circle_2d(
-            Isometry2d::from_translation(centre),
-            RADIAL_ENTRY_RADIUS,
-            color,
-        );
+        strokes.circle(centre, RADIAL_ENTRY_RADIUS, color);
 
         if entry.action == Action::Sell && hold.progress > 0.0 {
-            gizmos.arc_2d(
-                Isometry2d::from_translation(centre),
-                std::f32::consts::TAU * hold.progress,
+            strokes.arc(
+                centre,
                 RADIAL_ENTRY_RADIUS + 4.0,
+                std::f32::consts::TAU * hold.progress,
                 RED,
             );
         }
@@ -469,11 +466,7 @@ fn draw(
             _ => None,
         };
         if let Some(range) = range {
-            gizmos.circle_2d(
-                Isometry2d::from_translation(open.anchor),
-                range,
-                color.with_alpha(0.35),
-            );
+            strokes.circle(open.anchor, range, color.with_alpha(0.35));
         }
     }
 }

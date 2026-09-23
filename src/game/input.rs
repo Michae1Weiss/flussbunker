@@ -10,6 +10,7 @@ use crate::game::map::{BuildSpot, RiverPath};
 use crate::game::notes::ShowNote;
 use crate::game::palette::{INK, RED};
 use crate::game::radial::{Action, CloseMenu, Menu, OpenMenu, Target};
+use crate::game::stroke::Strokes;
 use crate::game::tower::Occupied;
 use crate::game::uboat::{Station, UBoat};
 use crate::game::wave::WaveState;
@@ -287,7 +288,7 @@ fn spot_at<'a, O>(
 }
 
 fn draw_hover(
-    mut gizmos: Gizmos,
+    mut strokes: ResMut<Strokes>,
     path: Res<RiverPath>,
     menu: Res<Menu>,
     camera: Single<(&Camera, &GlobalTransform)>,
@@ -302,11 +303,7 @@ fn draw_hover(
     };
 
     if let Some((_, transform, _)) = spot_at(world, spots.iter()) {
-        gizmos.circle_2d(
-            Isometry2d::from_translation(transform.translation.truncate()),
-            BUILD_SPOT_RADIUS,
-            INK,
-        );
+        strokes.circle(transform.translation.truncate(), BUILD_SPOT_RADIUS, INK);
         return;
     }
 
@@ -314,7 +311,7 @@ fn draw_hover(
         let (along, _) = path.project(world);
         let lane = RED;
         let here = path.point_at(along);
-        gizmos.circle_2d(Isometry2d::from_translation(here), 6.0, lane);
-        gizmos.line_2d(here, path.point_at(path.straight_end(along, false)), lane);
+        strokes.circle(here, 6.0, lane);
+        strokes.line(here, path.point_at(path.straight_end(along, false)), lane);
     }
 }

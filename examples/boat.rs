@@ -6,8 +6,8 @@ use flussbunker::balance::EnemyKind;
 use flussbunker::game::enemy::{enemy_bundle, shelling_bundle};
 use flussbunker::game::map::RiverPath;
 use flussbunker::game::{
-    art, combat, destruction, economy, enemy, input, juice, map, notes, projectile, radial, uboat,
-    wave,
+    art, combat, destruction, economy, enemy, input, juice, map, notes, projectile, radial, stroke,
+    uboat, wave,
 };
 use flussbunker::harness;
 
@@ -29,6 +29,7 @@ fn main() -> AppExit {
             notes::plugin,
             juice::plugin,
             input::plugin,
+            stroke::plugin,
         ))
         .insert_resource(Stream {
             light: Timer::from_seconds(4.0, TimerMode::Repeating),

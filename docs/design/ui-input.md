@@ -28,11 +28,21 @@ Input priority: modal UI > radial menu > world. Menus never swallow game intents
 - Hover on a turret shows its range. Build spots show as pencil circles in the prep phase.
 - Cursor changes for interaction hints. Immediate feedback for invalid or empty actions (dry click,
   one-line note), never a dialog.
+- Three paper notes, nothing else on screen: RM (coin and figure), wave (number and name,
+  bunker integrity, the preview line between waves, a 2x badge while fast), boat (model and
+  trim, torpedoes and hull). Key hints appear on the boat note only until dive and torpedo were
+  each used once; no other key hint is ever on screen (M9).
+- **Phase banners**: a big paper banner slams in and slides away for the prologue, each wave
+  start (the last one says so), a cleared wave with its bonus and a lost boat; a pause banner
+  stays while paused. Real time, never takes input, never stops the game.
+- Everything drawn on the map (ranges, rings, lanes, route, bars) is a pencil stroke; labels on
+  the map sit on paper tags.
 
 ## Tab overlay (toggle)
 
-Turret ranges, reload bars, targeting mode, exact ship HP as pencil notes, boat HP and torpedoes,
-the boat's lane, enemy route, destroyer shelling range. Designed as a real mode, because most
+Turret ranges, reload arcs, targeting mode (as its icon once drawn), exact HP of damaged ships as
+pencil notes (an undamaged ship says nothing), boat hull and torpedoes, the boat's lane, enemy
+route, destroyer shelling range. Designed as a real mode, because most
 players will leave it on.
 
 Web note: check `Window::prevent_default_event_handling` so Tab does not leave the canvas.

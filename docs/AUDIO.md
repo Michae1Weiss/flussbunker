@@ -67,12 +67,12 @@ exaggerated, never gory, no screams, no voices.
 | `sfx/torpedo_hit` | a torpedo strikes a hull | 1.5-2.5 s | 2 | -3 dB | ±4 % | the payoff of the game: a deep underwater thump, a rising water column, a metal groan. Take time over this one |
 | `sfx/explode_small` | a light ship (MTB) explodes | 0.8-1.2 s | 3 | -8 dB | ±8 % | a pop with crackle |
 | `sfx/explode_medium` | a medium ship (corvette, landing craft) explodes or breaks | 1.2-2.0 s | 3 | -5 dB | ±6 % | a solid boom with debris |
-| `sfx/explode_large` | a destroyer or monitor breaks, and every blast in a chain | 2.0-3.5 s | 2 | 0 dB | ±5 % | the loudest sound in the game: a long boom, rumble, debris raining down |
+| `sfx/explode_large` | a destroyer or monitor explodes or breaks, also when a chain kills it | 2.0-3.5 s | 2 | 0 dB | ±5 % | the loudest sound in the game: a long boom, rumble, debris raining down |
 | `sfx/bank_hit` | a torpedo runs into the bank | 1.0-1.5 s | 2 | -6 dB | ±6 % | a dull explosion into earth, dirt falling. Duller than a ship hit: "wasted" |
 | `sfx/splash` | a shell or a piece of debris lands in the water | 0.3-0.6 s | 3 | -16 dB | ±10 % | a plop and a short spray. A hand or a cup dropped into a filled sink |
 | `sfx/debris_land` | debris lands on land | 0.2-0.4 s | 3 | -16 dB | ±10 % | a thud on dirt, a bag of rice dropped on the floor |
 | `sfx/burn` | a ship dies by fire and drifts to the bank | 1.5-2.5 s | 2 | -14 dB | ±6 % | crackle of flames, a short "whoomp" at the start |
-| `sfx/sink` | a wreck starts sinking | 2.0-3.0 s | 2 | -12 dB | ±6 % | hull groan, gurgling water |
+| `sfx/sink` | a rammed ship capsizes and goes down | 2.0-3.0 s | 2 | -12 dB | ±6 % | hull groan, gurgling water |
 | `sfx/breach` | a ship reaches the bunker and costs integrity | 1.0-1.5 s | 1 | -4 dB | none | a heavy impact on concrete plus a short alarm bell: something went wrong |
 
 ## The boat

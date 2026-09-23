@@ -40,6 +40,7 @@ game before any further code. Decisions, with reasons:
 | Polish (M9) before playtest 1, which moves to 2027 (2026-09-23, designer's call) | testers should meet the game with sound, aim and a clean screen; the cost is no outside feedback this year |
 | Turret barrels turn to their target, but firing never waits for them | cosmetic only: the balance model and the M5 run stay valid |
 | Audio is recorded or sourced by the designer to a written spec (`AUDIO.md`) | the spec fixes length, level and moment, so any source fits the mix |
+| Key hints vanish after first use; the overlay hides HP of undamaged ships (M9) | the screen was overloaded; a hint the player has acted on is noise, and full HP is not news |
 | Hulls x1.8, emplacements x1.5 (2026-09-22) | the PoC sizes put an MTB at 8 x 13 px at 1280x800, below what any drawing can make readable; the first art in the game showed it. Convoys get longer, debris hits big hulls more often |
 
 ## Rejected ideas

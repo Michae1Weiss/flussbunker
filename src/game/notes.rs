@@ -8,8 +8,9 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 
 use crate::balance::{BUILD_SPOT_RADIUS, NOTE_SECONDS, Z_UI};
+use crate::game::art::PaperTag;
 use crate::game::map::BuildSpot;
-use crate::game::palette::{INK, NOTE, RED};
+use crate::game::palette::{INK, RED};
 use crate::game::projectile::TorpedoLost;
 use crate::game::tower::{Tier, Tower};
 use crate::game::uboat::{Model, Station, Torpedoes, UBoat};
@@ -216,7 +217,7 @@ fn note(text: &'static str, at: Vec2, seconds: f32) -> impl Bundle {
             ..default()
         },
         TextColor(INK),
-        TextBackgroundColor(NOTE),
+        PaperTag,
         Transform::from_translation((at + Vec2::new(0.0, 32.0)).extend(Z_UI)),
     )
 }
@@ -224,22 +225,15 @@ fn note(text: &'static str, at: Vec2, seconds: f32) -> impl Bundle {
 fn fade_notes(
     time: Res<Time>,
     mut commands: Commands,
-    mut notes: Query<(
-        Entity,
-        &mut Note,
-        &mut TextColor,
-        &mut TextBackgroundColor,
-        &mut Transform,
-    )>,
+    mut notes: Query<(Entity, &mut Note, &mut TextColor, &mut Transform)>,
 ) {
-    for (entity, mut note, mut color, mut paper, mut transform) in &mut notes {
+    for (entity, mut note, mut color, mut transform) in &mut notes {
         if note.0.tick(time.delta()).just_finished() {
             commands.entity(entity).despawn();
             continue;
         }
         let left = note.0.fraction_remaining();
         color.0.set_alpha(left.min(1.0));
-        paper.0.set_alpha(left.min(1.0));
         transform.translation.y += 6.0 * time.delta_secs();
     }
 }

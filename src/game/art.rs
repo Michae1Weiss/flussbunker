@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
+use bevy::text::TextLayoutInfo;
 
 use crate::balance::{
     BoatModel, EnemyKind, TowerKind, BUILD_SPOT_RADIUS, MAP_BLEED_TILES, MAP_HEIGHT_TILES,
@@ -16,6 +17,7 @@ use crate::balance::{
 use crate::game::destruction::{Crater, Debris};
 use crate::game::enemy::EnemyType;
 use crate::game::map::{BuildSpot, BunkerSprite, RiverSegment};
+use crate::game::palette::NOTE;
 use crate::game::projectile::{Lifetime, Shell, Torpedo};
 use crate::game::tower::{Barrel, Occupied, Tier, Tower, TowerType};
 use crate::game::uboat::{Model, UBoat};
@@ -33,6 +35,7 @@ pub fn plugin(app: &mut App) {
                 dress_enemies,
                 dress_towers,
                 dress_barrels,
+                (dress_tags, fit_tags).chain(),
                 dress_boats,
                 dress_projectiles,
                 dress_debris,
@@ -104,6 +107,18 @@ pub fn paper_backing(art: &Art, key: &str) -> Option<impl Bundle> {
         },
     ))
 }
+
+/// A label on the map, on paper: the drawn tag stretched behind the text, or flat paper.
+/// The paper follows the text's alpha, so a fading label fades its paper.
+#[derive(Component)]
+pub struct PaperTag;
+
+/// On a `PaperTag` text: the sprite behind it.
+#[derive(Component)]
+struct TagSheet(Entity);
+
+/// World units of paper around the text.
+const TAG_PADDING: Vec2 = Vec2::new(10.0, 4.0);
 
 pub const ICONS: [&str; 12] = [
     "coin",
@@ -280,6 +295,69 @@ fn dress_barrels(
                 sprite.custom_size = Some(Vec2::splat(TOWER_SIZE[tier.0 as usize]));
                 *anchor = Anchor::CENTER;
             }
+        }
+    }
+}
+
+fn dress_tags(art: Res<Art>, mut commands: Commands, tags: Query<Entity, Added<PaperTag>>) {
+    for text in &tags {
+        match art.image("ui/tag.png") {
+            Some(image) => {
+                let (x, y) = (32.0 * 8.0 * 0.25, 16.0 * 8.0 * 0.25);
+                let sheet = commands
+                    .spawn((
+                        Name::new("Tag"),
+                        Sprite {
+                            image,
+                            image_mode: SpriteImageMode::Sliced(TextureSlicer {
+                                border: BorderRect {
+                                    min_inset: Vec2::new(x, y),
+                                    max_inset: Vec2::new(x, y),
+                                },
+                                max_corner_scale: 0.15,
+                                ..default()
+                            }),
+                            custom_size: Some(Vec2::ZERO),
+                            ..default()
+                        },
+                        Transform::from_translation(Vec3::Z * -0.01),
+                        ChildOf(text),
+                    ))
+                    .id();
+                commands.entity(text).insert(TagSheet(sheet));
+            }
+            None => {
+                commands.entity(text).insert(TextBackgroundColor(NOTE));
+            }
+        }
+    }
+}
+
+fn fit_tags(
+    texts: Query<
+        (&TextLayoutInfo, &TextColor, Option<&TagSheet>),
+        (
+            With<PaperTag>,
+            Or<(Changed<TextLayoutInfo>, Changed<TextColor>)>,
+        ),
+    >,
+    mut backgrounds: Query<(&TextColor, &mut TextBackgroundColor), With<PaperTag>>,
+    mut sheets: Query<&mut Sprite>,
+) {
+    for (layout, color, sheet) in &texts {
+        if let Some(mut sprite) = sheet.and_then(|s| sheets.get_mut(s.0).ok()) {
+            sprite.custom_size = Some(if layout.size.x > 0.0 {
+                layout.size + TAG_PADDING * 2.0
+            } else {
+                Vec2::ZERO
+            });
+            sprite.color = Color::WHITE.with_alpha(color.0.alpha());
+        }
+    }
+    for (color, mut background) in &mut backgrounds {
+        let alpha = color.0.alpha();
+        if background.0.alpha() != alpha {
+            background.0.set_alpha(alpha);
         }
     }
 }

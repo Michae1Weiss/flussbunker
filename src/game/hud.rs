@@ -2,12 +2,13 @@
 //! Tab overlay (ranges, reloads, targeting, HP of damaged ships, the boat's hull and
 //! torpedoes, route, shelling reach) and enemy health bars. Key hints on the boat note stay
 //! only until each action was used once. Reads other features' state; sole writer of
-//! `DisplayedMarks`, `Overlay`, `OverlayLabel`, `Learned`. Rules: docs/design/ui-input.md
+//! `DisplayedMarks`, `Overlay`, `OverlayLabel`, `OverlayIcon`, `Learned`.
+//! Rules: docs/design/ui-input.md
 
 use bevy::prelude::*;
 
 use crate::balance::{RM_TWEEN_SECONDS, TORPEDO_RUN, Z_UI};
-use crate::game::art::{paper_backing, Art};
+use crate::game::art::{paper_backing, Art, PaperTag};
 use crate::game::bunker::Integrity;
 use crate::game::combat::{Fired, Health, Weapon};
 use crate::game::economy::Treasury;
@@ -45,6 +46,7 @@ pub fn plugin(app: &mut App) {
                 draw_overlay,
                 attach_labels,
                 update_labels,
+                update_icons,
             )
                 .chain()
                 .in_set(Frame::Present),
@@ -88,6 +90,16 @@ struct WaveNote;
 
 #[derive(Component)]
 struct BoatNote;
+
+/// The targeting mode as a drawn icon under a turret in the overlay; replaces the text
+/// label once the icon exists. Despawned with its turret.
+#[derive(Component)]
+pub struct OverlayIcon {
+    subject: Entity,
+}
+
+/// World units below a turret's centre where its overlay label or icon sits.
+const TOWER_LABEL_DROP: f32 = 26.0;
 
 /// Overlay text that follows `subject`; despawned with it.
 #[derive(Component)]
@@ -458,7 +470,7 @@ fn attach_labels(
                 ..default()
             },
             TextColor(INK),
-            TextBackgroundColor(NOTE),
+            PaperTag,
             Visibility::Hidden,
             Transform::from_translation(Vec3::new(0.0, 0.0, Z_UI)),
         ));
@@ -467,15 +479,70 @@ fn attach_labels(
         spawn(&mut commands, enemy, Vec2::new(0.0, 24.0));
     }
     for tower in &towers {
-        spawn(&mut commands, tower, Vec2::new(0.0, -26.0));
+        spawn(&mut commands, tower, Vec2::new(0.0, -TOWER_LABEL_DROP));
+        commands.spawn((
+            Name::new("Overlay icon"),
+            DespawnOnExit(Screen::Gameplay),
+            OverlayIcon { subject: tower },
+            Sprite {
+                custom_size: Some(Vec2::splat(18.0)),
+                ..default()
+            },
+            Visibility::Hidden,
+            Transform::from_translation(Vec3::new(0.0, 0.0, Z_UI)),
+        ));
     }
     for boat in &boats {
         spawn(&mut commands, boat, Vec2::new(0.0, -28.0));
     }
 }
 
+fn targeting_icon(targeting: Targeting) -> &'static str {
+    match targeting {
+        Targeting::First => "ui/icons/first.png",
+        Targeting::Strongest => "ui/icons/strongest.png",
+        Targeting::Weakest => "ui/icons/weakest.png",
+        Targeting::Nearest => "ui/icons/nearest.png",
+    }
+}
+
+fn update_icons(
+    overlay: Res<Overlay>,
+    art: Res<Art>,
+    mut commands: Commands,
+    mut icons: Query<(
+        Entity,
+        &OverlayIcon,
+        &mut Sprite,
+        &mut Visibility,
+        &mut Transform,
+    )>,
+    towers: Query<(&Transform, &Targeting), (With<Tower>, Without<OverlayIcon>)>,
+) {
+    for (entity, icon, mut sprite, mut visibility, mut transform) in &mut icons {
+        let Ok((tower, targeting)) = towers.get(icon.subject) else {
+            commands.entity(entity).despawn();
+            continue;
+        };
+        let image = art.image(targeting_icon(*targeting));
+        *visibility = if overlay.on && image.is_some() {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+        if let Some(image) = image {
+            if sprite.image != image {
+                sprite.image = image;
+            }
+        }
+        transform.translation =
+            (tower.translation.truncate() - Vec2::Y * TOWER_LABEL_DROP).extend(Z_UI);
+    }
+}
+
 fn update_labels(
     overlay: Res<Overlay>,
+    art: Res<Art>,
     mut commands: Commands,
     mut labels: Query<(
         Entity,
@@ -502,7 +569,11 @@ fn update_labels(
                 String::new()
             }
         } else if let Ok(targeting) = towers.get(label.subject) {
-            targeting.label().to_string()
+            if art.image(targeting_icon(*targeting)).is_some() {
+                String::new()
+            } else {
+                targeting.label().to_string()
+            }
         } else if let Ok((health, torpedoes)) = boats.get(label.subject) {
             format!(
                 "Rumpf {:.0}%, {} Torpedos",

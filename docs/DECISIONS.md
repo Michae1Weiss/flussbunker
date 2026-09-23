@@ -37,6 +37,9 @@ game before any further code. Decisions, with reasons:
 | Boat stops, turns on the spot, then moves (M1 feel test, 2026-09-17) | turning while moving read as a car, not a boat; reversing without stopping felt broken |
 | Docked hull repair is free and automatic; the only money mechanic of damage is the 30 % bill after a loss (M5) | two repair mechanics would double the rule; the shipyard menu holds only the next model |
 | Blast only on Break, not on Explode (M4 feel test) | the matrix as approved; chains come from torpedoes and the 15 cm, not from every kill |
+| Polish (M9) before playtest 1, which moves to 2027 (2026-09-23, designer's call) | testers should meet the game with sound, aim and a clean screen; the cost is no outside feedback this year |
+| Turret barrels turn to their target, but firing never waits for them | cosmetic only: the balance model and the M5 run stay valid |
+| Audio is recorded or sourced by the designer to a written spec (`AUDIO.md`) | the spec fixes length, level and moment, so any source fits the mix |
 | Hulls x1.8, emplacements x1.5 (2026-09-22) | the PoC sizes put an MTB at 8 x 13 px at 1280x800, below what any drawing can make readable; the first art in the game showed it. Convoys get longer, debris hits big hulls more often |
 
 ## Rejected ideas

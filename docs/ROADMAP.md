@@ -14,10 +14,13 @@ art) until M8.
 | 4 | Destruction | death matrix, AoE, chains with 0.2 s stagger, debris arcs and craters | chains are readable and motivate placement | you cannot tell what killed the second ship | 15 |
 | 5 | The run | prologue, 12 waves, economy from the balance model, boat models, boat loss and repair, onboarding notes, telemetry CSV | a perfect run pays ~60 % | money left over, or wave 4 unwinnable | 20 |
 | 6 | Readability | Tab overlay, minimal paper UI, wave preview, feedback notes, juice basics (hit flash, RM tween, shake) | a new player can say why they lost | "I don't know what happened" in playtest | 15 |
-| 7 | **Playtest 1** | 5 friends, video, CSV, `PLAYTEST.md` thresholds | thresholds in `PLAYTEST.md` | any threshold missed → fix before M8 | 10 |
-| 8 | Placeholder art + web | AI assets in the paper style, WASM build on itch.io, playtest 2 | the style keeps readability at 1280×800 | ships are not distinguishable at a glance | 25 |
+| 8 | Art + web | hand-drawn sprites and map in the paper style (`ART.md`), WASM build on itch.io | the style keeps readability at 1280×800 | ships are not distinguishable at a glance | 25 |
+| 9 | Feel and skin | turrets that aim, recoil and flash; explosions; sound and music (`AUDIO.md`); decluttered paper UI with 9-slice notes, icons, pencil strokes; phase banners | every action answers with sight and sound, and the screen says only what the player needs now | a tester asks what a turret is shooting at, or reads a key hint after the first wave | 30 |
+| 7 | **Playtest 1** (2027) | 5 friends, video, CSV, `PLAYTEST.md` thresholds | thresholds in `PLAYTEST.md` | any threshold missed → fix before publishing | 10 |
 
-Total ~150 h. Anything not in the table is a GitHub issue labelled `idea` and is not started in 2026.
+Total ~160 h. Order changed on 2026-09-23 by the designer: art (8) and feel (9) come before the
+first playtest, which moves to 2027. The cost is no outside feedback in 2026. Anything not in the
+table is a GitHub issue labelled `idea` and is not started in 2026.
 
 ## Sequencing rules
 

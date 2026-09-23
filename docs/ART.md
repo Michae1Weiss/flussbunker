@@ -100,6 +100,36 @@ Empty cells are skipped, so start with the style test: MTB, destroyer, monitor, 
 If the classes are not distinguishable at 1280x800, change the drawing, not the game
 (`docs/ROADMAP.md`, M8).
 
+## The second sheet: barrels, effects, paper UI
+
+```bash
+python3 tools/art_fit.py sheet --set fx art/guides/sheet_fx.png
+python3 tools/art_fit.py slice --set fx art/drawn/sheet_fx.png
+```
+
+Its own layout, so the first sheet stays valid. Same brushes, same legend, same export steps.
+
+- **Barrels** `sprites/barrels/{flak,gun88,heavy15}_{0,1,2}.png`: the cell is the emplacement's
+  square and its centre is the pivot the barrel turns around. Draw the barrel from the centre
+  upward; the drawn base shows faintly as a guide. The bases on the first sheet are redrawn
+  **without** barrels, in the same cells: flak 2 and 8.8 tier 2 have two barrels on one mount,
+  the 15 cm one, two, three.
+- **Effects** `fx/flash_0..1` (muzzle flash, small then big), `fx/explosion_0..3` (flash,
+  fireball, breaking up, smoke; played in that order), `fx/smoke`: seen from above, flat, no
+  cutout edge. The game scales them per weapon and ship size.
+- **Paper UI**: `ui/note` (the HUD notes), `ui/tag` (small labels on the map), `ui/banner` (the
+  big phase pop-ups) are 9-slice: the thin guide lines cut the cell into corners, edges and middle.
+  Corners are kept as drawn, edges are stretched along one axis, the middle in both. So: torn or
+  folded detail only in the corners, even edges, a plain middle. `ui/disc` is a round paper
+  plate for radial-menu entries.
+- **Icons** `ui/icons/*`: coin, bunker, torpedo, hull, dive, surface, the four targeting modes
+  (first, strongest, weakest, nearest), upgrade, sell. Ink on paper, flat, readable at 24 px.
+- **Stroke** `ui/stroke`: one pencil line along the middle of a long strip, its left and right
+  ends joining seamlessly. The game lays it around every range circle and along every line, at
+  the same width for any radius.
+
+Paper UI and icons are exported at 8 px per world unit instead of 3: the UI grows with the window.
+
 ## The map
 
 ```bash

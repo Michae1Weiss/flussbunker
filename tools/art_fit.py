@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Turn hand-drawn sheets into the files the game loads (docs/ART.md).
 
-  art_fit.py sheet OUT          guide sheet: one cell per sprite, one scale, line-weight legend
-  art_fit.py slice SHEET        cut the drawn sheet by the same cells, add the sticker, write assets/
+  art_fit.py sheet OUT [--set fx]    guide sheet: one cell per sprite, one scale, line-weight legend
+  art_fit.py slice SHEET [--set fx]  cut the drawn sheet by the same cells, add the sticker, write assets/
   art_fit.py map-template OUT   river band, build spots, bunker on a tile grid: draw the map over it
   art_fit.py map-mask OUT       the exact water as white on transparent, for a clipping mask
   art_fit.py map DRAWN          the finished map into assets/map/background.png
@@ -40,9 +40,11 @@ HULL_BEAM_RATIO = 0.55
 UBOAT_BEAM = 22.0
 
 # Sheet pixels per world unit, and exported pixels per world unit: a Retina MacBook shows
-# about 2.3 px per unit, and linear filtering stays clean up to about 2x reduction.
+# about 2.3 px per unit, and linear filtering stays clean up to about 2x reduction. Paper UI
+# is shown larger than its world size (scaled with the window), so it keeps more pixels.
 DRAW_SCALE = 16
 SCALE = 3
+UI_SCALE = 8
 SHEET_WIDTH = 4096
 SHEET_GAP = 96
 
@@ -54,7 +56,7 @@ BORDER = 1.0
 SHADOW = 0.5
 PAPER = "#f7f5ef"
 
-SIZES = {
+SPRITES = {
     "sprites/ships/mtb.png": (29 * HULL_BEAM_RATIO, 29),
     "sprites/ships/corvette.png": (43 * HULL_BEAM_RATIO, 43),
     "sprites/ships/landing.png": (54 * HULL_BEAM_RATIO, 54),
@@ -81,9 +83,40 @@ SIZES = {
     "sprites/shell.png": (4, 4),
 }
 
-# Drawn on the paper or under the water: no cutout edge, no shadow.
+ICONS = ("coin", "bunker", "torpedo", "hull", "dive", "surface",
+         "first", "strongest", "weakest", "nearest", "upgrade", "sell")
+
+# The second sheet: barrels, effects, paper UI. Its own layout, so the first sheet stays valid.
+FX = {
+    **{f"sprites/barrels/{kind}_{tier}.png": (side, side)
+       for kind in ("flak", "gun88", "heavy15")
+       for tier, side in enumerate((36, 43.2, 50.4))},
+    "fx/flash_0.png": (16, 16),
+    "fx/flash_1.png": (16, 16),
+    **{f"fx/explosion_{i}.png": (48, 48) for i in range(4)},
+    "fx/smoke.png": (32, 32),
+    "ui/note.png": (48, 32),
+    "ui/tag.png": (32, 16),
+    "ui/banner.png": (96, 32),
+    "ui/disc.png": (48, 48),
+    **{f"ui/icons/{name}.png": (24, 24) for name in ICONS},
+    "ui/stroke.png": (96, 8),
+}
+
+SETS = {"sprites": SPRITES, "fx": FX}
+SIZES = {**SPRITES, **FX}
+
+# Drawn on the paper, under the water, or as ink on a note: no cutout edge, no shadow.
 FLAT = {"sprites/crater.png", "sprites/splash.png", "sprites/spot.png",
-        "sprites/shell.png", "sprites/torpedo.png"}
+        "sprites/shell.png", "sprites/torpedo.png", "ui/stroke.png",
+        *(k for k in FX if k.startswith(("fx/", "ui/icons/")))}
+# Stretched by the game: corners stay, edges repeat along one axis, the middle fills.
+NINE_SLICE = {"ui/note.png", "ui/tag.png", "ui/banner.png"}
+NINE_SLICE_BORDER = 0.25
+
+
+def export_scale(key):
+    return UI_SCALE if key.startswith("ui/") else SCALE
 
 
 def magick(*args):
@@ -91,6 +124,8 @@ def magick(*args):
     last = args[-1] if args else ""
     if last.endswith(".png"):
         os.makedirs(os.path.dirname(os.path.abspath(last)), exist_ok=True)
+        # Without timestamps a re-slice of the same drawing leaves git clean.
+        args = (*args[:-1], "-define", "png:exclude-chunks=date,time", last)
     result = subprocess.run(["magick", *args], capture_output=True, text=True)
     if result.returncode:
         sys.exit(f"magick failed: {result.stderr.strip()}")
@@ -126,11 +161,11 @@ def record(present):
         f.write("".join(k + "\n" for k in sorted(present)))
 
 
-def sheet_cells():
-    """Rows in the order of SIZES; the same layout draws the guide and slices the drawing."""
+def sheet_cells(name):
+    """Rows in the order of the set; the same layout draws the guide and slices the drawing."""
     cells, x, y, row_h = [], SHEET_GAP, SHEET_GAP, 0
-    for key in SIZES:
-        w, h = round(SIZES[key][0] * DRAW_SCALE), round(SIZES[key][1] * DRAW_SCALE)
+    for key, (ww, wh) in SETS[name].items():
+        w, h = round(ww * DRAW_SCALE), round(wh * DRAW_SCALE)
         if x + w + SHEET_GAP > SHEET_WIDTH:
             x, y, row_h = SHEET_GAP, y + row_h + SHEET_GAP, 0
         cells.append((key, x, y, w, h))
@@ -139,9 +174,25 @@ def sheet_cells():
     return cells, y + row_h + SHEET_GAP
 
 
-def sheet(out):
-    cells, legend_y = sheet_cells()
-    w, h = SHEET_WIDTH, legend_y + 5 * SHEET_GAP
+def sheet_height(name, legend_y):
+    """The first sheet's size is fixed by drawings already made; the fx legend has more lines."""
+    return legend_y + (5 if name == "sprites" else 7) * SHEET_GAP
+
+
+def underlays(cells):
+    """A barrel cell shows its drawn base faintly, so the barrel lands on the right spot."""
+    args = []
+    for key, x, y, cw, ch in cells:
+        base = os.path.join(ASSETS, key.replace("/barrels/", "/turrets/"))
+        if "/barrels/" in key and os.path.exists(base):
+            args += ["(", base, "-resize", f"{cw}x{ch}!", "-channel", "A", "-evaluate", "multiply",
+                     "0.25", "+channel", ")", "-geometry", f"+{x}+{y}", "-composite"]
+    return args
+
+
+def sheet(out, name):
+    cells, legend_y = sheet_cells(name)
+    w, h = SHEET_WIDTH, sheet_height(name, legend_y)
     frame = ["-fill", "none", "-stroke", "rgba(60,140,220,0.35)", "-strokewidth", "2"]
     inner = ["-stroke", "rgba(60,140,220,0.9)", "-strokewidth", "3"]
     labels = ["-stroke", "none", "-fill", "rgba(60,140,220,1)", "-pointsize", "22", *font_args()]
@@ -152,8 +203,14 @@ def sheet(out):
                   "-draw", f"line {x},{y + ch / 2:.0f} {x + cw},{y + ch / 2:.0f}"]
         if m:
             inner += ["-draw", f"rectangle {x + m},{y + m} {x + cw - m},{y + ch - m}"]
-        name = os.path.basename(key)[:-4]
-        labels += ["-draw", f"text {x},{y - 10} '{name}'"]
+        if key in NINE_SLICE:
+            bx, by = cw * NINE_SLICE_BORDER, ch * NINE_SLICE_BORDER
+            frame += ["-draw", f"line {x + bx:.0f},{y} {x + bx:.0f},{y + ch}",
+                      "-draw", f"line {x + cw - bx:.0f},{y} {x + cw - bx:.0f},{y + ch}",
+                      "-draw", f"line {x},{y + by:.0f} {x + cw},{y + by:.0f}",
+                      "-draw", f"line {x},{y + ch - by:.0f} {x + cw},{y + ch - by:.0f}"]
+        label = key.split("/", 1)[1][:-4]
+        labels += ["-draw", f"text {x},{y - 10} '{label}'"]
     ly = legend_y + SHEET_GAP
     legend = ["-fill", "none", "-stroke", "black",
               "-strokewidth", f"{OUTLINE * DRAW_SCALE:.0f}", "-draw", f"line {SHEET_GAP},{ly} {SHEET_GAP + 400},{ly}",
@@ -167,7 +224,11 @@ def sheet(out):
               "-draw", f"text {SHEET_GAP + 1800},{ly + 10} 'Draw inside the dark frame. Bow up. The centre is the pivot.'",
               "-draw", f"text {SHEET_GAP + 1800},{ly + 90} 'Hide this layer, export PNG at 100%, run: art_fit.py slice'",
               "-draw", f"text {SHEET_GAP + 1800},{ly + 170} 'Empty cells are skipped; draw in any order.'"]
-    magick("-size", f"{w}x{h}", "xc:white", *frame, *inner, *labels, *legend, out)
+    if name == "fx":
+        legend += ["-draw", f"text {SHEET_GAP},{ly + 250} 'Barrels: from the centre (the pivot) upward; the faint base is only a guide.'",
+                   "-draw", f"text {SHEET_GAP},{ly + 330} 'note, tag, banner: the thin lines are 9-slice cuts. Corners stay, edges stretch: keep edges even and the middle plain.'",
+                   "-draw", f"text {SHEET_GAP},{ly + 410} 'stroke: one pencil line along the middle, left and right ends must join seamlessly.'"]
+    magick("-size", f"{w}x{h}", "xc:white", *underlays(cells), *frame, *inner, *labels, *legend, out)
     print(f"{out}  {w}x{h}, {DRAW_SCALE} px per world unit")
 
 
@@ -193,10 +254,10 @@ def sticker(src, dst, key):
                edge, "-composite", src, "-composite", dst)
 
 
-def slice_sheet(sheet_png):
+def slice_sheet(sheet_png, name):
     """The drawn sheet, guide layer hidden, exported at the guide's size."""
-    cells, legend_y = sheet_cells()
-    expected = (SHEET_WIDTH, legend_y + 5 * SHEET_GAP)
+    cells, legend_y = sheet_cells(name)
+    expected = (SHEET_WIDTH, sheet_height(name, legend_y))
     if size_of(sheet_png) != expected:
         sys.exit(f"{sheet_png} is {size_of(sheet_png)}, the guide is {expected}; export at 100%")
     with tempfile.TemporaryDirectory() as tmp:
@@ -208,7 +269,8 @@ def slice_sheet(sheet_png):
             sticker(piece, done, key)
             out = os.path.join(ASSETS, key)
             os.makedirs(os.path.dirname(out), exist_ok=True)
-            magick(done, "-resize", f"{round(SIZES[key][0] * SCALE)}x{round(SIZES[key][1] * SCALE)}!", out)
+            scale = export_scale(key)
+            magick(done, "-resize", f"{round(SIZES[key][0] * scale)}x{round(SIZES[key][1] * scale)}!", out)
             print(f"wrote {key}")
     check()
 
@@ -330,8 +392,11 @@ def check():
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name, arg in (("sheet", "out"), ("slice", "sheet"), ("map-template", "out"),
-                      ("map-mask", "out"), ("map", "drawn")):
+    for name, arg in (("sheet", "out"), ("slice", "sheet")):
+        p = sub.add_parser(name)
+        p.add_argument(arg)
+        p.add_argument("--set", choices=SETS, default="sprites")
+    for name, arg in (("map-template", "out"), ("map-mask", "out"), ("map", "drawn")):
         sub.add_parser(name).add_argument(arg)
     p = sub.add_parser("overlay")
     p.add_argument("map")
@@ -339,8 +404,8 @@ def main():
     sub.add_parser("check")
     args = parser.parse_args()
     {
-        "sheet": lambda: sheet(args.out),
-        "slice": lambda: slice_sheet(args.sheet),
+        "sheet": lambda: sheet(args.out, args.set),
+        "slice": lambda: slice_sheet(args.sheet, args.set),
         "map-template": lambda: map_template(args.out),
         "map-mask": lambda: map_mask(args.out),
         "map": lambda: map_in(args.drawn),

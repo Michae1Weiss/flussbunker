@@ -11,7 +11,7 @@ use crate::balance::{
     UBOAT_MOVE_ALIGNMENT, UBOAT_REARM_SECONDS, UBOAT_SALVO_SPACING, UBOAT_SUBMERGED_SPEED_FACTOR,
     UBOAT_TURN_RATE, UNPAID_RETURN_HP, Z_UBOAT,
 };
-use crate::game::combat::{Damage, DamageKind, Health, LastHitBy, Sunk, Weapon};
+use crate::game::combat::{Damage, DamageKind, Fired, Health, LastHitBy, Sunk, Weapon};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, EnemyType};
 use crate::game::input::{FireTorpedo, MoveUBoat, ToggleTrim, UpgradeBoat};
@@ -411,8 +411,10 @@ fn fire_torpedoes(
     mut commands: Commands,
     mut intents: MessageReader<FireTorpedo>,
     mut hints: MessageWriter<Hint>,
+    mut fired: MessageWriter<Fired>,
     mut boats: Query<
         (
+            Entity,
             &Transform,
             &Model,
             &Station,
@@ -425,7 +427,7 @@ fn fire_torpedoes(
 ) {
     let requested = intents.read().count() > 0;
 
-    for (transform, model, station, heading, trim, mut torpedoes) in &mut boats {
+    for (boat, transform, model, station, heading, trim, mut torpedoes) in &mut boats {
         torpedoes.tube.tick(time.delta());
         let at = transform.translation.truncate();
         if !requested || !trim.can_fire() || !torpedoes.tube.is_finished() {
@@ -455,6 +457,12 @@ fn fire_torpedoes(
 
         torpedoes.loaded -= 1;
         torpedoes.tube.reset();
+        fired.write(Fired {
+            weapon: Weapon::Torpedo,
+            shooter: boat,
+            from: at + axis * UBOAT_LENGTH * 0.5,
+            dir: axis,
+        });
         commands.spawn(torpedo_bundle(
             transform.translation.truncate(),
             axis,
@@ -468,10 +476,11 @@ fn fire_torpedoes(
 fn fire_deck_gun(
     time: Res<Time>,
     mut commands: Commands,
-    mut boats: Query<(&Transform, &Trim, &mut DeckGun), With<UBoat>>,
+    mut fired: MessageWriter<Fired>,
+    mut boats: Query<(Entity, &Transform, &Trim, &mut DeckGun), With<UBoat>>,
     enemies: Query<(Entity, &Transform), With<Enemy>>,
 ) {
-    for (transform, trim, mut gun) in &mut boats {
+    for (boat, transform, trim, mut gun) in &mut boats {
         gun.reload.tick(time.delta());
         if !trim.can_fire() || !gun.reload.is_finished() {
             continue;
@@ -485,6 +494,15 @@ fn fire_deck_gun(
         let Some((entity, _)) = target else {
             continue;
         };
+        let dir = enemies.get(entity).map_or(Vec2::Y, |(_, ship)| {
+            (ship.translation.truncate() - origin).normalize_or(Vec2::Y)
+        });
+        fired.write(Fired {
+            weapon: Weapon::DeckGun,
+            shooter: boat,
+            from: origin + dir * UBOAT_BEAM * 0.5,
+            dir,
+        });
         gun.reload.reset();
         commands.spawn(shell_bundle(
             origin,

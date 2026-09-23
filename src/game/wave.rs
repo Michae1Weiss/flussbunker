@@ -16,6 +16,7 @@ use crate::screens::Screen;
 pub fn plugin(app: &mut App) {
     app.init_resource::<WaveState>()
         .add_message::<WaveFinished>()
+        .add_message::<WaveStarted>()
         .add_systems(OnEnter(Screen::Gameplay), (reset, spawn_prologue).chain())
         .add_systems(OnExit(Screen::Gameplay), normal_pace)
         .add_systems(
@@ -38,6 +39,12 @@ pub fn plugin(app: &mut App) {
 /// The river is empty and the prep phase begins.
 #[derive(Message)]
 pub struct WaveFinished;
+
+/// Written when a wave begins; `index` is the wave, from 0.
+#[derive(Message)]
+pub struct WaveStarted {
+    pub index: usize,
+}
 
 #[derive(Resource, Debug)]
 pub struct WaveState {
@@ -134,10 +141,15 @@ fn toggle_pace(mut intents: MessageReader<ToggleSpeed>, mut time: ResMut<Time<Vi
     }
 }
 
-fn start_wave(mut wave: ResMut<WaveState>, mut time: ResMut<Time<Virtual>>) {
+fn start_wave(
+    mut wave: ResMut<WaveState>,
+    mut time: ResMut<Time<Virtual>>,
+    mut started: MessageWriter<WaveStarted>,
+) {
     if wave.prologue || wave.running || wave.index >= WAVES.len() {
         return;
     }
+    started.write(WaveStarted { index: wave.index });
     wave.running = true;
     wave.elapsed = 0.0;
     wave.spawned = vec![0; WAVES[wave.index].groups.len()];

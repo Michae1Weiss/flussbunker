@@ -22,6 +22,11 @@ pub const Z_UI: f32 = 50.0;
 pub const NOTE_SECONDS: f32 = 4.0;
 /// Seconds an enemy stays white after a hit.
 pub const FLASH_SECONDS: f32 = 0.1;
+/// Radians per second a turret barrel turns towards its target. Cosmetic: firing never waits.
+pub const BARREL_TURN_RATE: f32 = 9.0;
+/// World units a barrel kicks back on a shot, and seconds it takes to run out again.
+pub const RECOIL_DISTANCE: f32 = 3.5;
+pub const RECOIL_SECONDS: f32 = 0.15;
 /// Camera offset in world units at full trauma, and trauma lost per second.
 pub const SHAKE_MAX_OFFSET: f32 = 14.0;
 pub const SHAKE_DECAY: f32 = 1.6;

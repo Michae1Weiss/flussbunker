@@ -9,6 +9,7 @@ pub mod combat;
 pub mod destruction;
 pub mod economy;
 pub mod enemy;
+pub mod fx;
 pub mod hud;
 pub mod input;
 pub mod juice;
@@ -37,6 +38,7 @@ pub fn plugin(app: &mut App) {
     app.add_plugins((
         economy::plugin,
         bunker::plugin,
+        fx::plugin,
         radial::plugin,
         notes::plugin,
         juice::plugin,

@@ -1,5 +1,6 @@
 //! The M8 style test as a program: every ship, boat and emplacement tier on the river at
-//! game scale, notes filled, the radial menu open, time frozen. Saves
+//! game scale, notes filled, the radial menu open; time runs briefly so barrels turn, then
+//! freezes on a volley of muzzle flashes and a torpedo bursting on the bank. Saves
 //! `target/lineup/<w>x<h>.png` plus `-overlay.png` and quits.
 //! `cargo run --example lineup -- 1280 800`, or `-- full` for the screen itself.
 
@@ -10,11 +11,13 @@ use flussbunker::balance::{
     EnemyKind, TowerKind, TOWER_SIZE, UBOAT_BEAM, UBOAT_LENGTH, UBOAT_LENGTH_STEP,
 };
 use flussbunker::game::art::Art;
+use flussbunker::game::combat::{Fired, Weapon};
 use flussbunker::game::enemy::{enemy_bundle, Along};
 use flussbunker::game::input::ToggleOverlay;
-use flussbunker::game::map::{BuildSpot, RiverPath};
+use flussbunker::game::map::{tile_to_world, BuildSpot, RiverPath};
+use flussbunker::game::projectile::TorpedoLost;
 use flussbunker::game::radial::{OpenMenu, Target};
-use flussbunker::game::tower::{tower_bundle, Constructing, Tier, Tower};
+use flussbunker::game::tower::{tower_bundle, Aim, Constructing, Tier, Tower, TowerType};
 use flussbunker::{game, harness};
 
 const SHIPS: [EnemyKind; 6] = [
@@ -79,7 +82,10 @@ fn script(
     art: Res<Art>,
     shot: Res<Shot>,
     spots: Query<(Entity, &Transform), With<BuildSpot>>,
-    mut towers: Query<(&Tier, &mut Sprite), With<Tower>>,
+    mut towers: Query<(Entity, &Transform, &TowerType, &Tier, &Aim, &mut Sprite), With<Tower>>,
+    ships: Query<&Transform, Without<Tower>>,
+    mut fired: MessageWriter<Fired>,
+    mut lost: MessageWriter<TorpedoLost>,
     mut menus: MessageWriter<OpenMenu>,
     mut overlay: MessageWriter<ToggleOverlay>,
     mut exit: MessageWriter<AppExit>,
@@ -135,10 +141,29 @@ fn script(
             }
         }
         10 => {
-            for (tier, mut sprite) in &mut towers {
+            for (_, _, _, tier, _, mut sprite) in &mut towers {
                 sprite.color.set_alpha(1.0);
                 sprite.custom_size = Some(Vec2::splat(TOWER_SIZE[tier.0 as usize]));
             }
+        }
+        60 => time.unpause(),
+        88 => {
+            time.pause();
+            for (tower, transform, kind, tier, aim, _) in &towers {
+                let origin = transform.translation.truncate();
+                let dir = aim.0.and_then(|e| ships.get(e).ok()).map_or(Vec2::Y, |t| {
+                    (t.translation.truncate() - origin).normalize_or(Vec2::Y)
+                });
+                fired.write(Fired {
+                    weapon: Weapon::Turret(kind.0),
+                    shooter: tower,
+                    from: origin + dir * TOWER_SIZE[tier.0 as usize] * 0.5,
+                    dir,
+                });
+            }
+            lost.write(TorpedoLost {
+                at: tile_to_world(5.0, 4.4),
+            });
         }
         90 => {
             commands

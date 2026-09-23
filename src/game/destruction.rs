@@ -13,7 +13,7 @@ use crate::balance::{
 use crate::game::combat::{Damage, DamageKind, LastHitBy, Sunk, Weapon};
 use crate::game::enemy::{Enemy, EnemyType, Hull};
 use crate::game::map::RiverPath;
-use crate::game::projectile::splash_bundle;
+use crate::game::projectile::{splash_bundle, TorpedoLost};
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
@@ -22,7 +22,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             FixedUpdate,
             (
-                (drift, fly_debris, retire, sink).in_set(Sim::Movement),
+                (drift, fly_debris, crater_the_bank, retire, sink).in_set(Sim::Movement),
                 detonate.in_set(Sim::Targeting),
             ),
         )
@@ -109,6 +109,9 @@ impl Sinking {
         }
     }
 }
+
+/// World units across, the size of a heavy debris crater.
+const BANK_CRATER_SIZE: f32 = 24.0;
 
 const UNDERWATER: Color = Color::srgba(0.35, 0.42, 0.48, 0.8);
 const STRANDED: Color = Color::srgba(0.72, 0.66, 0.60, 0.9);
@@ -202,7 +205,6 @@ fn on_sunk(
                 1,
                 airborne.iter().count(),
             );
-            commands.spawn(splash_bundle(position, Color::srgb(1.0, 0.7, 0.3), size.y));
         }
         Style::Break => {
             for sign in [-1.0, 1.0] {
@@ -233,11 +235,6 @@ fn on_sunk(
                     delay: Timer::from_seconds(CHAIN_DELAY, TimerMode::Once),
                 },
                 Transform::from_translation(position.extend(Z_DEBRIS)),
-            ));
-            commands.spawn(splash_bundle(
-                position,
-                Color::srgb(1.0, 0.55, 0.2),
-                BLAST_RADIUS[class.index()] * 2.0,
             ));
         }
         Style::Capsize => {
@@ -450,22 +447,38 @@ fn fly_debris(
                 piece.size,
             ));
         } else {
-            commands.spawn((
-                Name::new("Crater"),
-                Crater {
-                    born: time.elapsed_secs(),
-                },
-                DespawnOnExit(Screen::Gameplay),
-                Sprite {
-                    color: Color::srgba(0.10, 0.12, 0.09, 0.5),
-                    custom_size: Some(Vec2::splat(piece.size * 1.6)),
-                    ..default()
-                },
-                Transform::from_translation(landing.extend(Z_WRECK)),
-            ));
+            commands.spawn(crater(landing, piece.size * 1.6, time.elapsed_secs()));
         }
         commands.entity(entity).despawn();
     }
+}
+
+/// A torpedo that left the channel hit the bank.
+fn crater_the_bank(
+    time: Res<Time>,
+    path: Res<RiverPath>,
+    mut commands: Commands,
+    mut lost: MessageReader<TorpedoLost>,
+) {
+    for lost in lost.read() {
+        if !path.contains(lost.at) {
+            commands.spawn(crater(lost.at, BANK_CRATER_SIZE, time.elapsed_secs()));
+        }
+    }
+}
+
+fn crater(at: Vec2, size: f32, born: f32) -> impl Bundle {
+    (
+        Name::new("Crater"),
+        Crater { born },
+        DespawnOnExit(Screen::Gameplay),
+        Sprite {
+            color: Color::srgba(0.10, 0.12, 0.09, 0.5),
+            custom_size: Some(Vec2::splat(size)),
+            ..default()
+        },
+        Transform::from_translation(at.extend(Z_WRECK)),
+    )
 }
 
 #[cfg(test)]

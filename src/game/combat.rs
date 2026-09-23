@@ -7,13 +7,15 @@ use crate::balance::{TowerKind, AP_ARMOUR_FACTOR};
 use crate::game_plugin::Sim;
 
 pub fn plugin(app: &mut App) {
-    app.add_message::<Damage>().add_systems(
-        FixedUpdate,
-        (
-            apply_damage.in_set(Sim::Damage),
-            sink_the_dead.in_set(Sim::Death),
-        ),
-    );
+    app.add_message::<Damage>()
+        .add_message::<Fired>()
+        .add_systems(
+            FixedUpdate,
+            (
+                apply_damage.in_set(Sim::Damage),
+                sink_the_dead.in_set(Sim::Death),
+            ),
+        );
 }
 
 #[derive(Component, Debug)]
@@ -68,6 +70,16 @@ pub struct Damage {
     /// Armour-piercing shell: armour counts `AP_ARMOUR_FACTOR`.
     pub ap: bool,
     pub weapon: Weapon,
+}
+
+/// A gun fired or a tube launched. Presentation reads it: muzzle flash, recoil, sound.
+/// `from` is the muzzle, `dir` a unit vector along the shot.
+#[derive(Message, Debug, Clone, Copy)]
+pub struct Fired {
+    pub weapon: Weapon,
+    pub shooter: Entity,
+    pub from: Vec2,
+    pub dir: Vec2,
 }
 
 /// Weapon of the most recent hit; inserted by `apply_damage`.

@@ -1,21 +1,23 @@
 //! The art layer: swaps greybox rectangles for sprites from `assets/` when the files
 //! exist, applies the handwriting font, lays the painted map under the river. Gameplay
 //! never knows whether a sprite is a rectangle or a drawing. Sole writer of `Art`,
-//! `Sprite::image`, `TextFont::font`. Asset list and sizes: docs/ART.md
+//! `Sprite::image`, `TextFont::font`, and of a drawn barrel's size and anchor.
+//! Asset list and sizes: docs/ART.md
 
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 
 use crate::balance::{
     BoatModel, EnemyKind, TowerKind, BUILD_SPOT_RADIUS, MAP_BLEED_TILES, MAP_HEIGHT_TILES,
-    MAP_WIDTH_TILES, TILE_SIZE, TOWER_TIERS,
+    MAP_WIDTH_TILES, TILE_SIZE, TOWER_SIZE, TOWER_TIERS,
 };
 use crate::game::destruction::{Crater, Debris};
 use crate::game::enemy::EnemyType;
 use crate::game::map::{BuildSpot, BunkerSprite, RiverSegment};
 use crate::game::projectile::{Lifetime, Shell, Torpedo};
-use crate::game::tower::{Occupied, Tier, Tower, TowerType};
+use crate::game::tower::{Barrel, Occupied, Tier, Tower, TowerType};
 use crate::game::uboat::{Model, UBoat};
 use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
@@ -30,6 +32,7 @@ pub fn plugin(app: &mut App) {
             (
                 dress_enemies,
                 dress_towers,
+                dress_barrels,
                 dress_boats,
                 dress_projectiles,
                 dress_debris,
@@ -56,7 +59,34 @@ impl Art {
     pub fn image(&self, key: &str) -> Option<Handle<Image>> {
         self.images.get(key).cloned()
     }
+
+    /// `prefix_0.png` .. `prefix_{n-1}.png`, or nothing unless every frame exists.
+    pub fn frames(&self, prefix: &str, n: usize) -> Vec<Handle<Image>> {
+        let frames: Vec<_> = (0..n)
+            .filter_map(|i| self.image(&format!("{prefix}_{i}.png")))
+            .collect();
+        if frames.len() == n {
+            frames
+        } else {
+            Vec::new()
+        }
+    }
 }
+
+pub const ICONS: [&str; 12] = [
+    "coin",
+    "bunker",
+    "torpedo",
+    "hull",
+    "dive",
+    "surface",
+    "first",
+    "strongest",
+    "weakest",
+    "nearest",
+    "upgrade",
+    "sell",
+];
 
 fn enemy_key(kind: EnemyKind) -> &'static str {
     match kind {
@@ -69,13 +99,20 @@ fn enemy_key(kind: EnemyKind) -> &'static str {
     }
 }
 
-fn tower_key(kind: TowerKind, tier: u8) -> String {
-    let name = match kind {
+fn kind_name(kind: TowerKind) -> &'static str {
+    match kind {
         TowerKind::Flak => "flak",
         TowerKind::Gun88 => "gun88",
         TowerKind::Heavy15 => "heavy15",
-    };
-    format!("sprites/turrets/{name}_{tier}.png")
+    }
+}
+
+fn tower_key(kind: TowerKind, tier: u8) -> String {
+    format!("sprites/turrets/{}_{tier}.png", kind_name(kind))
+}
+
+fn barrel_key(kind: TowerKind, tier: u8) -> String {
+    format!("sprites/barrels/{}_{tier}.png", kind_name(kind))
 }
 
 fn boat_key(model: BoatModel) -> &'static str {
@@ -102,6 +139,7 @@ fn manifest() -> Vec<String> {
     for kind in TowerKind::ALL {
         for tier in 0..TOWER_TIERS {
             keys.push(tower_key(kind, tier));
+            keys.push(barrel_key(kind, tier));
         }
     }
     for model in [BoatModel::ViiA, BoatModel::ViiC, BoatModel::IxC] {
@@ -122,6 +160,20 @@ fn manifest() -> Vec<String> {
     for i in 0..6 {
         keys.push(format!("sprites/debris_{i}.png"));
     }
+    keys.extend((0..2).map(|i| format!("fx/flash_{i}.png")));
+    keys.extend((0..4).map(|i| format!("fx/explosion_{i}.png")));
+    keys.extend(
+        [
+            "fx/smoke.png",
+            "ui/note.png",
+            "ui/tag.png",
+            "ui/banner.png",
+            "ui/disc.png",
+            "ui/stroke.png",
+        ]
+        .map(String::from),
+    );
+    keys.extend(ICONS.map(|name| format!("ui/icons/{name}.png")));
     keys
 }
 
@@ -175,6 +227,27 @@ fn dress_towers(
 ) {
     for (kind, tier, mut sprite) in &mut towers {
         dress(&mut sprite, art.image(&tower_key(kind.0, tier.0)));
+    }
+}
+
+/// A drawn barrel shares its emplacement's square and turns around the centre.
+fn dress_barrels(
+    art: Res<Art>,
+    towers: Query<(&TowerType, &Tier, &Children), Or<(Added<Tower>, Changed<Tier>)>>,
+    mut barrels: Query<(&mut Sprite, &mut Anchor), With<Barrel>>,
+) {
+    for (kind, tier, children) in &towers {
+        let Some(image) = art.image(&barrel_key(kind.0, tier.0)) else {
+            continue;
+        };
+        for &child in children {
+            if let Ok((mut sprite, mut anchor)) = barrels.get_mut(child) {
+                sprite.image = image.clone();
+                sprite.color = Color::WHITE;
+                sprite.custom_size = Some(Vec2::splat(TOWER_SIZE[tier.0 as usize]));
+                *anchor = Anchor::CENTER;
+            }
+        }
     }
 }
 

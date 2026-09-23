@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use crate::balance::{
     EnemyKind, CONVOY_GAP, ENEMY_TURN_RATE, HULL_BEAM_RATIO, PROLOGUE_CRUISE, TILE_SIZE, Z_ENEMY,
 };
-use crate::game::combat::{Armor, Health, Weapon};
+use crate::game::combat::{Armor, Fired, Health, Weapon};
 use crate::game::map::RiverPath;
 use crate::game::projectile::{shell_bundle, splash_bundle};
 use crate::game::uboat::{Trim, UBoat};
@@ -15,13 +15,15 @@ use crate::game_plugin::Sim;
 use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
-    app.add_message::<EnemyReachedBunker>().add_systems(
-        FixedUpdate,
-        (
-            (advance_in_convoy, cruise).in_set(Sim::Movement),
-            shell_the_boat.in_set(Sim::Targeting),
-        ),
-    );
+    app.add_message::<EnemyReachedBunker>()
+        .add_message::<RangingStarted>()
+        .add_systems(
+            FixedUpdate,
+            (
+                (advance_in_convoy, cruise).in_set(Sim::Movement),
+                shell_the_boat.in_set(Sim::Targeting),
+            ),
+        );
 }
 
 #[derive(Component)]
@@ -76,6 +78,12 @@ impl Cruising {
             downstream: true,
         }
     }
+}
+
+/// A shelling ship has just found the surfaced boat and begins ranging in: the dive warning.
+#[derive(Message)]
+pub struct RangingStarted {
+    pub at: Vec2,
 }
 
 #[derive(Message)]
@@ -208,10 +216,12 @@ fn convoy_limit(wanted: f32, hull: f32, ahead: Option<(f32, f32)>) -> f32 {
 fn shell_the_boat(
     time: Res<Time>,
     mut commands: Commands,
-    mut gunners: Query<(&Transform, &mut Shelling)>,
+    mut fired: MessageWriter<Fired>,
+    mut ranging: MessageWriter<RangingStarted>,
+    mut gunners: Query<(Entity, &Transform, &Hull, &mut Shelling)>,
     uboats: Query<(Entity, &Transform, &Trim), With<UBoat>>,
 ) {
-    for (transform, mut shelling) in &mut gunners {
+    for (ship, transform, hull, mut shelling) in &mut gunners {
         let origin = transform.translation.truncate();
         let contact = uboats.iter().find(|(_, boat, trim)| {
             trim.is_hittable()
@@ -224,8 +234,19 @@ fn shell_the_boat(
         };
 
         let boat_position = boat.translation.truncate();
+        let dir = (boat_position - origin).normalize_or(Vec2::Y);
+        let shot = Fired {
+            weapon: Weapon::Enemy,
+            shooter: ship,
+            from: origin + dir * hull.0 * 0.3,
+            dir,
+        };
+        if shelling.ranging.elapsed_secs() == 0.0 {
+            ranging.write(RangingStarted { at: origin });
+        }
         if !shelling.ranging.tick(time.delta()).is_finished() {
             if shelling.reload.tick(time.delta()).just_finished() {
+                fired.write(shot);
                 let volley = (shelling.ranging.elapsed_secs()
                     / shelling.reload.duration().as_secs_f32()) as i32;
                 let side = if volley % 2 == 0 { 1.0 } else { -1.0 };
@@ -241,6 +262,7 @@ fn shell_the_boat(
         }
 
         if shelling.reload.tick(time.delta()).just_finished() {
+            fired.write(shot);
             commands.spawn(shell_bundle(
                 origin,
                 target,

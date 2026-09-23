@@ -30,10 +30,11 @@ Each rule exists because breaking it is the usual way hand-drawn game art ends u
    distance; shape does not.
 6. **Red belongs to the player.** Boat, emplacements, torpedoes and the bunker carry the one red;
    enemies stay black and grey. The cheapest readability there is.
-7. **Value hierarchy, darkest first: sprite ink > water tone > banks > land.** Sprites are white
-   paper cutouts with black ink, so they need a toned ground to stand on: the water is a flat,
-   calm wash, clearly darker than paper and clearly lighter than ink. Banks are grey pencil, never
-   solid black. Land stays near white. If the map competes with the ships, the map changes.
+7. **Value hierarchy: sprite ink is the darkest thing on screen, water the darkest area of the
+   map, land the lightest.** Sprites are white paper cutouts with black ink, so they need a toned
+   ground to stand on: the water is a flat, calm wash, clearly darker than paper and clearly
+   lighter than ink. Banks are thin grey pencil lines, never solid black. If the map competes with
+   the ships, the map changes. Exact colours: "The map", below.
 8. **Draw in full contrast, never pre-tinted.** The game tints at runtime: submerged boat
    blue-grey, hits flash red, sinking wrecks grey.
 9. **Leave the inside empty or draw it.** The script fills everything inside the outline with paper,
@@ -112,12 +113,26 @@ top and bottom, so draw paper and land there too). It is 4 px per unit, the shee
 legend in the bottom-left corner shows the line weights at this scale. Use it, not the brush
 sizes from the sheet.
 
+Colours (hex, sRGB). Land matches the game's paper around the map, so the edge is invisible:
+
+| What | Hex | Why this value |
+|---|---|---|
+| Land, paper | `#F5F2EB` | same as the game's `PAPER`; stickers (`#F7F5EF`) sit on it by their shadow |
+| Water, flat fill | `#AEBDC6` | 1.8:1 against the white stickers, 8:1 against their ink |
+| Flow marks on the water | `#8FA2AE` | a step darker than the water, never ink |
+| Banks, trees, rocks: lines | `#8A857E` | grey pencil; the darkest thing on the map, still far from ink |
+| Grass, small detail | `#B3AEA6` | lighter than the banks |
+| Red, rare accents | `#C8372D` | the one red, same as the sprites |
+
+Never pure black (`#000000`) on the map: black belongs to the sprites. In Procreate, type the hex
+under Colours, Value. Check Actions, Canvas, Canvas information: the colour profile should be
+sRGB; Display P3 shifts every colour when the game loads the PNG.
+
 1. Import the template as a canvas. The blue band is the water exactly as the code has it, the
    circles are build spots, the square is the bunker. Lock it.
 2. Actions, Add, Insert a file: the mask. It lands on the band; lock it.
-3. A `water` layer above the mask, set to Clipping Mask: fill it with one flat, calm tone
-   (grey-blue, around 25 % darkness) and a few light flow marks. Nothing busy on the water:
-   ships live there.
+3. A `water` layer above the mask, set to Clipping Mask: fill it flat with `#AEBDC6`, a few flow
+   marks in `#8FA2AE`. Nothing busy on the water: ships live there.
 4. Banks on a layer above, along the band's edge, grey pencil at most as heavy as the legend's
    bank line. They may bulge outward, never inward.
 5. Land: near-white paper, sparse detail. Nothing bigger than the true-size corvette outline in

@@ -5,6 +5,7 @@ use bevy::prelude::*;
 
 pub mod art;
 pub mod audio;
+pub mod banner;
 pub mod bunker;
 pub mod combat;
 pub mod destruction;
@@ -41,6 +42,7 @@ pub fn plugin(app: &mut App) {
         bunker::plugin,
         fx::plugin,
         audio::plugin,
+        banner::plugin,
         radial::plugin,
         notes::plugin,
         juice::plugin,

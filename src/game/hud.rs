@@ -1,13 +1,15 @@
 //! Three paper notes (RM with tweened value and floating transactions, wave, boat), the
-//! Tab overlay (ranges, reloads, targeting, exact HP, torpedoes, route, shelling reach)
-//! and enemy health bars. Reads other features' state; sole writer of `DisplayedMarks`,
-//! `Overlay`, `OverlayLabel`. Rules: docs/design/ui-input.md
+//! Tab overlay (ranges, reloads, targeting, HP of damaged ships, the boat's hull and
+//! torpedoes, route, shelling reach) and enemy health bars. Key hints on the boat note stay
+//! only until each action was used once. Reads other features' state; sole writer of
+//! `DisplayedMarks`, `Overlay`, `OverlayLabel`, `Learned`. Rules: docs/design/ui-input.md
 
 use bevy::prelude::*;
 
 use crate::balance::{RM_TWEEN_SECONDS, TORPEDO_RUN, Z_UI};
+use crate::game::art::{paper_backing, Art};
 use crate::game::bunker::Integrity;
-use crate::game::combat::Health;
+use crate::game::combat::{Fired, Health, Weapon};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, Shelling};
 use crate::game::input::ToggleOverlay;
@@ -22,12 +24,17 @@ use crate::screens::Screen;
 pub fn plugin(app: &mut App) {
     app.init_resource::<DisplayedMarks>()
         .init_resource::<Overlay>()
-        .add_systems(OnEnter(Screen::Gameplay), (spawn_notes, reset_marks))
+        .init_resource::<Learned>()
+        .add_systems(
+            OnEnter(Screen::Gameplay),
+            (spawn_notes, reset_marks, reset_learned),
+        )
         .add_systems(
             Update,
             (
                 scale_ui,
                 toggle_overlay,
+                learn,
                 tween_marks,
                 update_rm_note,
                 update_wave_note,
@@ -50,6 +57,13 @@ pub fn plugin(app: &mut App) {
 pub struct DisplayedMarks {
     pub shown: f32,
     last: u32,
+}
+
+/// Which boat controls the player has used this run; their hints go once they have.
+#[derive(Resource, Default)]
+pub struct Learned {
+    dived: bool,
+    fired: bool,
 }
 
 /// The tactical overlay, toggled with Tab. A mode, not a peek.
@@ -85,26 +99,47 @@ pub struct OverlayLabel {
 /// Logical window height the UI sizes are designed for.
 const UI_REFERENCE_HEIGHT: f32 = 800.0;
 
-/// A paper note pinned at `place`, its text in a child carrying `marker`.
+/// A paper note pinned at `place`: the drawn paper if there is one, an optional icon, and
+/// its text in a child carrying `marker`.
 fn spawn_note(
     commands: &mut Commands,
+    art: &Art,
     name: &'static str,
     place: Node,
     size: f32,
+    icon: Option<&str>,
     marker: impl Bundle,
 ) -> Entity {
-    let paper = commands
-        .spawn((
-            Name::new(name),
-            DespawnOnExit(Screen::Gameplay),
-            BackgroundColor(NOTE),
+    let backing = paper_backing(art, "ui/note.png");
+    let mut paper = commands.spawn((
+        Name::new(name),
+        DespawnOnExit(Screen::Gameplay),
+        Node {
+            position_type: PositionType::Absolute,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(8.0),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            ..place
+        },
+    ));
+    if backing.is_none() {
+        paper.insert(BackgroundColor(NOTE));
+    }
+    let paper = paper.id();
+    if let Some(backing) = backing {
+        commands.spawn((backing, ChildOf(paper)));
+    }
+    if let Some(image) = icon.and_then(|key| art.image(key)) {
+        commands.spawn((
+            ImageNode::new(image),
             Node {
-                position_type: PositionType::Absolute,
-                padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
-                ..place
+                width: Val::Px(size * 1.2),
+                height: Val::Px(size * 1.2),
+                ..default()
             },
-        ))
-        .id();
+            ChildOf(paper),
+        ));
+    }
     commands.spawn((
         marker,
         Text::new(String::new()),
@@ -118,26 +153,67 @@ fn spawn_note(
     paper
 }
 
-fn spawn_notes(mut commands: Commands) {
+fn spawn_notes(mut commands: Commands, art: Res<Art>) {
     let top_left = Node {
         top: Val::Px(10.0),
         left: Val::Px(12.0),
         ..default()
     };
-    let rm = spawn_note(&mut commands, "RM note", top_left, 26.0, RmNote);
+    let rm = spawn_note(
+        &mut commands,
+        &art,
+        "RM note",
+        top_left,
+        26.0,
+        Some("ui/icons/coin.png"),
+        RmNote,
+    );
     commands.entity(rm).insert(RmPaper);
     let top_right = Node {
         top: Val::Px(10.0),
         right: Val::Px(12.0),
         ..default()
     };
-    spawn_note(&mut commands, "Wave note", top_right, 19.0, WaveNote);
+    spawn_note(
+        &mut commands,
+        &art,
+        "Wave note",
+        top_right,
+        19.0,
+        None,
+        WaveNote,
+    );
     let bottom_left = Node {
         bottom: Val::Px(10.0),
         left: Val::Px(12.0),
         ..default()
     };
-    spawn_note(&mut commands, "Boat note", bottom_left, 19.0, BoatNote);
+    spawn_note(
+        &mut commands,
+        &art,
+        "Boat note",
+        bottom_left,
+        19.0,
+        None,
+        BoatNote,
+    );
+}
+
+fn reset_learned(mut learned: ResMut<Learned>) {
+    *learned = Learned::default();
+}
+
+fn learn(
+    mut fired: MessageReader<Fired>,
+    boats: Query<&Trim, With<UBoat>>,
+    mut learned: ResMut<Learned>,
+) {
+    if fired.read().any(|shot| shot.weapon == Weapon::Torpedo) {
+        learned.fired = true;
+    }
+    if boats.iter().any(|trim| !matches!(trim, Trim::Surfaced)) {
+        learned.dived = true;
+    }
 }
 
 /// Sizes are designed at 800 logical pixels high; larger windows scale the UI up.
@@ -215,8 +291,18 @@ fn float_transactions(
     }
 }
 
-fn update_rm_note(mut note: Single<&mut Text, With<RmNote>>, displayed: Res<DisplayedMarks>) {
-    note.0 = format!("RM {}", displayed.shown.round() as u32);
+/// With a drawn coin beside it the figure stands alone.
+fn update_rm_note(
+    mut note: Single<&mut Text, With<RmNote>>,
+    displayed: Res<DisplayedMarks>,
+    art: Res<Art>,
+) {
+    let marks = displayed.shown.round() as u32;
+    note.0 = if art.image("ui/icons/coin.png").is_some() {
+        marks.to_string()
+    } else {
+        format!("RM {marks}")
+    };
 }
 
 fn update_wave_note(
@@ -224,41 +310,24 @@ fn update_wave_note(
     integrity: Res<Integrity>,
     wave: Res<WaveState>,
     time: Res<Time<Virtual>>,
-    overlay: Res<Overlay>,
 ) {
-    let phase = if wave.prologue {
-        "Versenke den Goldtransport".to_string()
-    } else if wave.running {
-        String::new()
-    } else {
-        format!("[Enter] nächste: {}", wave.preview())
-    };
-    let pace = if time.is_paused() {
-        "PAUSE [Esc]"
-    } else if time.relative_speed() > 1.0 {
-        "2x [F]"
-    } else {
-        "[F] 2x"
-    };
-    let tab = if overlay.on {
-        "[Tab] Karte aus"
-    } else {
-        "[Tab] Karte"
-    };
-
-    note.0 = format!(
-        "Welle {}\nBunker {}\n{}\n{}   {}",
-        wave.label(),
-        integrity.0,
-        phase,
-        pace,
-        tab
-    );
+    let mut lines = vec![
+        format!("Welle {}", wave.label()),
+        format!("Bunker {}", integrity.0),
+    ];
+    if !wave.prologue && !wave.running && !wave.preview().is_empty() {
+        lines.push(format!("Enter: {}", wave.preview()));
+    }
+    if time.relative_speed() > 1.0 {
+        lines.push("2× Tempo".into());
+    }
+    note.0 = lines.join("\n");
 }
 
 fn update_boat_note(
     mut note: Single<&mut Text, With<BoatNote>>,
     flotilla: Res<Flotilla>,
+    learned: Res<Learned>,
     boats: Query<(&Health, &Torpedoes, &Trim), With<UBoat>>,
 ) {
     let stats = flotilla.model.stats();
@@ -268,16 +337,28 @@ fn update_boat_note(
     };
 
     let pips: String = (0..stats.tubes)
-        .map(|i| if i < torpedoes.loaded { '|' } else { '.' })
+        .map(|i| if i < torpedoes.loaded { '•' } else { '-' })
         .collect();
 
-    note.0 = format!(
-        "{}   {}\nTorpedos [{}]   Rumpf {:.0}%\n[Rechtsklick] tauchen   [Space] Torpedo",
-        stats.name,
-        trim.label(),
-        pips,
-        health.fraction() * 100.0,
-    );
+    let mut lines = vec![
+        format!("{}, {}", stats.name, trim.label()),
+        format!(
+            "Torpedos {}   Rumpf {:.0}%",
+            pips,
+            health.fraction() * 100.0
+        ),
+    ];
+    let hints: Vec<&str> = [
+        (!learned.dived).then_some("Rechtsklick: tauchen"),
+        (!learned.fired).then_some("Leertaste: Torpedo"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    if !hints.is_empty() {
+        lines.push(hints.join("   "));
+    }
+    note.0 = lines.join("\n");
 }
 
 fn draw_health_bars(mut gizmos: Gizmos, boats: Query<(&Transform, &Health), With<Enemy>>) {
@@ -406,30 +487,39 @@ fn update_labels(
     subjects: Query<&Transform, Without<OverlayLabel>>,
     enemies: Query<&Health, With<Enemy>>,
     towers: Query<&Targeting, With<Tower>>,
-    boats: Query<&Torpedoes, With<UBoat>>,
+    boats: Query<(&Health, &Torpedoes), With<UBoat>>,
 ) {
     for (entity, label, mut text, mut visibility, mut transform) in &mut labels {
         let Ok(subject) = subjects.get(label.subject) else {
             commands.entity(entity).despawn();
             continue;
         };
-        *visibility = if overlay.on {
+        // An undamaged ship says nothing: full HP is not news.
+        let wanted = if let Ok(health) = enemies.get(label.subject) {
+            if health.current < health.max {
+                format!("{:.0}/{:.0}", health.current, health.max)
+            } else {
+                String::new()
+            }
+        } else if let Ok(targeting) = towers.get(label.subject) {
+            targeting.label().to_string()
+        } else if let Ok((health, torpedoes)) = boats.get(label.subject) {
+            format!(
+                "Rumpf {:.0}%, {} Torpedos",
+                health.fraction() * 100.0,
+                torpedoes.loaded
+            )
+        } else {
+            String::new()
+        };
+        if text.0 != wanted {
+            text.0 = wanted;
+        }
+        *visibility = if overlay.on && !text.0.is_empty() {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
-        if !overlay.on {
-            continue;
-        }
         transform.translation = (subject.translation.truncate() + label.offset).extend(Z_UI);
-        text.0 = if let Ok(health) = enemies.get(label.subject) {
-            format!("{:.0}/{:.0}", health.current, health.max)
-        } else if let Ok(targeting) = towers.get(label.subject) {
-            targeting.label().to_string()
-        } else if let Ok(torpedoes) = boats.get(label.subject) {
-            format!("{} Torpedos", torpedoes.loaded)
-        } else {
-            String::new()
-        };
     }
 }

@@ -1,8 +1,8 @@
 //! The M8 style test as a program: every ship, boat and emplacement tier on the river at
 //! game scale, notes filled, the radial menu open; time runs briefly so barrels turn, then
-//! freezes on a volley of muzzle flashes and a torpedo bursting on the bank. Saves
-//! `target/lineup/<w>x<h>.png` plus `-overlay.png` and quits.
-//! `cargo run --example lineup -- 1280 800`, or `-- full` for the screen itself.
+//! stops at speed 0 (a pause would show the pause banner) on a volley of muzzle flashes and a
+//! torpedo bursting on the bank. Saves `target/lineup/<w>x<h>.png` plus `-overlay.png` and
+//! quits. `cargo run --example lineup -- 1280 800`, or `-- full` for the screen itself.
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{save_to_disk, Screenshot};
@@ -93,7 +93,7 @@ fn script(
     *frame += 1;
     match *frame {
         5 => {
-            time.pause();
+            time.set_relative_speed(0.0);
             let along = |i: usize| path.length() * (0.08 + 0.075 * i as f32);
             for (i, &kind) in SHIPS.iter().enumerate() {
                 let s = along(i);
@@ -146,9 +146,9 @@ fn script(
                 sprite.custom_size = Some(Vec2::splat(TOWER_SIZE[tier.0 as usize]));
             }
         }
-        60 => time.unpause(),
+        60 => time.set_relative_speed(1.0),
         88 => {
-            time.pause();
+            time.set_relative_speed(0.0);
             for (tower, transform, kind, tier, aim, _) in &towers {
                 let origin = transform.translation.truncate();
                 let dir = aim.0.and_then(|e| ships.get(e).ok()).map_or(Vec2::Y, |t| {

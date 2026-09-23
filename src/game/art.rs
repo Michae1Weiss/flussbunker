@@ -73,6 +73,38 @@ impl Art {
     }
 }
 
+/// A 9-slice paper drawing as the backmost child of a UI node, filling it; `None` until
+/// `key` is drawn. Borders mirror `tools/art_fit.py` (8 px per world unit, a quarter each side).
+pub fn paper_backing(art: &Art, key: &str) -> Option<impl Bundle> {
+    let (w, h) = match key {
+        "ui/note.png" => (48.0, 32.0),
+        "ui/tag.png" => (32.0, 16.0),
+        "ui/banner.png" => (96.0, 32.0),
+        _ => return None,
+    };
+    let image = art.image(key)?;
+    let (x, y) = (w * 8.0 * 0.25, h * 8.0 * 0.25);
+    Some((
+        Name::new("Paper"),
+        ImageNode::new(image).with_mode(NodeImageMode::Sliced(TextureSlicer {
+            border: BorderRect {
+                min_inset: Vec2::new(x, y),
+                max_inset: Vec2::new(x, y),
+            },
+            max_corner_scale: 0.5,
+            ..default()
+        })),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            top: Val::Px(0.0),
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+    ))
+}
+
 pub const ICONS: [&str; 12] = [
     "coin",
     "bunker",

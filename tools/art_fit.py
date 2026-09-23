@@ -8,6 +8,7 @@
   art_fit.py map DRAWN          the finished map into assets/map/background.png
   art_fit.py overlay MAP OUT    the geometry drawn onto a finished map, to check it
   art_fit.py check              what exists, what is still greybox; rebuilds assets/manifest.txt
+                                (images and every .ogg under assets/audio)
 
 Needs ImageMagick 7 (`magick`). Sizes mirror src/balance.rs, geometry mirrors src/game/map.rs;
 change them there first, then here.
@@ -380,13 +381,21 @@ def overlay(map_png, out):
     print(f"{out}: water should fill the blue band, circles should sit on land")
 
 
+def audio_files():
+    """Every .ogg under assets/audio; the web build learns of them only through the manifest."""
+    found = []
+    for folder, _, files in os.walk(os.path.join(ASSETS, "audio")):
+        found += [os.path.relpath(os.path.join(folder, f), ASSETS) for f in files if f.endswith(".ogg")]
+    return sorted(found)
+
+
 def check():
     keys = [*SIZES, "map/background.png", "fonts/pencil.ttf"]
     present = [k for k in keys if os.path.exists(os.path.join(ASSETS, k))]
-    record(present)
+    record(present + audio_files())
     for key in keys:
         print(f"{'x' if key in present else '-'}  {key}")
-    print(f"{len(present)}/{len(keys)} drawn")
+    print(f"{len(present)}/{len(keys)} drawn, {len(audio_files())} sound files")
 
 
 def main():

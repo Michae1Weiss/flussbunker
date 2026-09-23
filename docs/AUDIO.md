@@ -8,6 +8,14 @@ Tone, from `docs/VISION.md`: playful, a little cartoonish, never grim. Everythin
 like a toy war on a kitchen table seen through a 1940s newsreel: real sounds, slightly
 exaggerated, never gory, no screams, no voices.
 
+## Where the files go
+
+`sfx/flak_shot` in the tables means `assets/audio/sfx/flak_shot.ogg`, or the variants
+`assets/audio/sfx/flak_shot_1.ogg`, `_2.ogg` ... (up to 8). Music goes to
+`assets/audio/music/build.ogg` and `wave.ogg`. After adding files, run
+`python3 tools/art_fit.py check`: the web build only knows files that are in the manifest.
+`cargo run` logs how many sounds it found (`audio: 12 of 41 sounds, music: 2`).
+
 ## Rules for every file
 
 1. **Format:** OGG Vorbis, quality 5 to 6, 48 kHz (44.1 is fine). Effects **mono**, music

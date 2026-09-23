@@ -1,6 +1,6 @@
 //! The only module that reads keyboard or mouse. Turns input into intent messages
 //! in `Update`; the simulation consumes them in `FixedUpdate`. Priority: radial menu
-//! before world. Sole writer of `SellHold`.
+//! before world. Sole writer of `SellHold`, `Hovered`.
 
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
@@ -28,9 +28,16 @@ pub fn plugin(app: &mut App) {
         .add_message::<ToggleSpeed>()
         .add_message::<TogglePause>()
         .add_message::<ToggleOverlay>()
-        .add_systems(Update, read_intents.in_set(Frame::Input))
+        .add_message::<ToggleMute>()
+        .add_message::<Refused>()
+        .init_resource::<Hovered>()
+        .add_systems(Update, (read_intents, track_hover).in_set(Frame::Input))
         .add_systems(Update, draw_hover.in_set(Frame::Present));
 }
+
+/// The enabled radial-menu entry under the cursor, if any.
+#[derive(Resource, Default)]
+pub struct Hovered(pub Option<Action>);
 
 /// Progress of a hold-to-sell, 0 to 1.
 #[derive(Resource, Default)]
@@ -89,6 +96,16 @@ pub struct TogglePause;
 #[derive(Message)]
 pub struct ToggleOverlay;
 
+/// M: sound off and on.
+#[derive(Message)]
+pub struct ToggleMute;
+
+/// A click on a menu entry the treasury cannot pay for.
+#[derive(Message)]
+pub struct Refused {
+    pub at: Vec2,
+}
+
 #[derive(SystemParam)]
 struct Intents<'w> {
     build: MessageWriter<'w, BuildTower>,
@@ -104,6 +121,8 @@ struct Intents<'w> {
     speed: MessageWriter<'w, ToggleSpeed>,
     pause: MessageWriter<'w, TogglePause>,
     overlay: MessageWriter<'w, ToggleOverlay>,
+    mute: MessageWriter<'w, ToggleMute>,
+    refused: MessageWriter<'w, Refused>,
     note: MessageWriter<'w, ShowNote>,
 }
 
@@ -139,6 +158,9 @@ fn read_intents(
     }
     if keys.just_pressed(KeyCode::Tab) {
         intents.overlay.write(ToggleOverlay);
+    }
+    if keys.just_pressed(KeyCode::KeyM) {
+        intents.mute.write(ToggleMute);
     }
 
     let cursor = cursor_world(&camera, *window);
@@ -186,10 +208,12 @@ fn read_intents(
             (Some(Action::Sell), _, _) => {}
             _ => {
                 if let Some(disabled) = cursor.and_then(|c| menu.hit_any(c)) {
+                    let at = open.anchor + disabled.offset;
                     intents.note.write(ShowNote {
                         text: "Zu teuer",
-                        at: open.anchor + disabled.offset,
+                        at,
                     });
+                    intents.refused.write(Refused { at });
                 } else {
                     intents.close_menu.write(CloseMenu);
                 }
@@ -234,6 +258,20 @@ fn read_intents(
 }
 
 /// Cursor in world units; `None` when the cursor is outside the window.
+fn track_hover(
+    menu: Res<Menu>,
+    camera: Single<(&Camera, &GlobalTransform)>,
+    window: Single<&Window>,
+    mut hovered: ResMut<Hovered>,
+) {
+    let now = cursor_world(&camera, *window)
+        .and_then(|c| menu.hit(c))
+        .map(|e| e.action);
+    if hovered.0 != now {
+        hovered.0 = now;
+    }
+}
+
 pub fn cursor_world(camera: &(&Camera, &GlobalTransform), window: &Window) -> Option<Vec2> {
     let (camera, camera_transform) = *camera;
     let cursor = window.cursor_position()?;

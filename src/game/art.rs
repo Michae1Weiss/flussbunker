@@ -177,14 +177,15 @@ fn manifest() -> Vec<String> {
     keys
 }
 
+/// Whether `assets/<key>` ships with the game; audio uses it too.
 #[cfg(not(target_arch = "wasm32"))]
-fn exists(key: &str) -> bool {
+pub fn exists(key: &str) -> bool {
     std::path::Path::new("assets").join(key).exists()
 }
 
 /// The web build cannot look before it loads; it trusts the list `tools/art_fit.py` keeps.
 #[cfg(target_arch = "wasm32")]
-fn exists(key: &str) -> bool {
+pub fn exists(key: &str) -> bool {
     include_str!("../../assets/manifest.txt")
         .lines()
         .any(|line| line.trim() == key)

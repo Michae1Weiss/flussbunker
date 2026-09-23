@@ -19,6 +19,7 @@ use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Rng>()
+        .add_message::<Landed>()
         .add_systems(
             FixedUpdate,
             (
@@ -141,6 +142,13 @@ pub struct Debris {
     pub vertical_speed: f32,
     pub damage: f32,
     pub size: f32,
+}
+
+/// A piece of debris came down; `water` when it fell into the river.
+#[derive(Message)]
+pub struct Landed {
+    pub at: Vec2,
+    pub water: bool,
 }
 
 /// `born` as on `Wreck`.
@@ -409,6 +417,7 @@ fn fly_debris(
     path: Res<RiverPath>,
     mut commands: Commands,
     mut damage: MessageWriter<Damage>,
+    mut landed: MessageWriter<Landed>,
     mut pieces: Query<(Entity, &mut Transform, &mut Debris)>,
     enemies: Query<(Entity, &Transform, &Hull), (With<Enemy>, Without<Debris>)>,
 ) {
@@ -424,6 +433,10 @@ fn fly_debris(
         }
 
         let landing = transform.translation.truncate();
+        landed.write(Landed {
+            at: landing,
+            water: path.contains(landing),
+        });
         let hit = enemies
             .iter()
             .find(|(_, ship, hull)| ship.translation.truncate().distance(landing) <= hull.0 * 0.5);

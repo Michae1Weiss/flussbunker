@@ -7,6 +7,7 @@ audio/sfx/boat_lost.ogg
 audio/sfx/breach.ogg
 audio/sfx/build.ogg
 audio/sfx/built.ogg
+audio/sfx/burn.ogg
 audio/sfx/coin_1.ogg
 audio/sfx/coin_2.ogg
 audio/sfx/coin_3.ogg
@@ -18,11 +19,13 @@ audio/sfx/debris_land_2.ogg
 audio/sfx/deck_gun.ogg
 audio/sfx/defeat.ogg
 audio/sfx/dive.ogg
+audio/sfx/empty_tubes.ogg
 audio/sfx/enemy_gun_1.ogg
 audio/sfx/enemy_gun_2.ogg
 audio/sfx/enemy_gun_3.ogg
 audio/sfx/enemy_gun_4.ogg
 audio/sfx/enemy_gun_5.ogg
+audio/sfx/engine.ogg
 audio/sfx/explode_large.ogg
 audio/sfx/explode_medium.ogg
 audio/sfx/explode_small.ogg
@@ -48,6 +51,7 @@ audio/sfx/torpedo_hit.ogg
 audio/sfx/torpedo_launch_1.ogg
 audio/sfx/torpedo_launch_2.ogg
 audio/sfx/torpedo_launch_3.ogg
+audio/sfx/torpedo_load.ogg
 audio/sfx/torpedo_run.ogg
 audio/sfx/ui_click.ogg
 audio/sfx/ui_hover.ogg
@@ -104,7 +108,15 @@ sprites/turrets/heavy15_0.png
 sprites/turrets/heavy15_1.png
 sprites/turrets/heavy15_2.png
 ui/banner.png
+ui/cursors/build.png
+ui/cursors/hand.png
+ui/cursors/pencil.png
+ui/cursors/steer.png
 ui/disc.png
+ui/hints/mouse_0.png
+ui/hints/mouse_1.png
+ui/hints/space_0.png
+ui/hints/space_1.png
 ui/icons/bunker.png
 ui/icons/coin.png
 ui/icons/dive.png

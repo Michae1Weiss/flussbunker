@@ -18,6 +18,8 @@ pub const Z_ENEMY: f32 = 20.0;
 pub const Z_PROJECTILE: f32 = 30.0;
 pub const Z_DEBRIS: f32 = 40.0;
 pub const Z_UI: f32 = 50.0;
+/// Notes sit above the radial menu, whose entries stack a little over `Z_UI`.
+pub const Z_NOTE: f32 = 60.0;
 /// Seconds an onboarding note stays readable.
 pub const NOTE_SECONDS: f32 = 4.0;
 /// Seconds an enemy stays white after a hit.

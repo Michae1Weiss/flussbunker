@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 
-use crate::balance::{BUILD_SPOT_RADIUS, NOTE_SECONDS, Z_UI};
+use crate::balance::{BUILD_SPOT_RADIUS, NOTE_SECONDS, Z_NOTE};
 use crate::game::art::PaperTag;
 use crate::game::map::BuildSpot;
 use crate::game::palette::{INK, RED};
@@ -215,7 +215,7 @@ fn note(text: &'static str, at: Vec2, seconds: f32) -> impl Bundle {
         },
         TextColor(INK),
         PaperTag,
-        Transform::from_translation((at + Vec2::new(0.0, 32.0)).extend(Z_UI)),
+        Transform::from_translation((at + Vec2::new(0.0, 32.0)).extend(Z_NOTE)),
     )
 }
 

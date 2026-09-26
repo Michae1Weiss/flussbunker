@@ -1,6 +1,6 @@
 //! The only module that reads keyboard or mouse. Turns input into intent messages
 //! in `Update`; the simulation consumes them in `FixedUpdate`. Priority: radial menu
-//! before world. Sole writer of `SellHold`, `Hovered`.
+//! before world. Sole writer of `SellHold`, `Hovered`, `FireArmed`.
 
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
@@ -15,9 +15,12 @@ use crate::game::tower::Occupied;
 use crate::game::uboat::{Station, UBoat};
 use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
+use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<SellHold>()
+        .init_resource::<FireArmed>()
+        .add_systems(OnEnter(Screen::Gameplay), disarm_fire)
         .add_message::<BuildTower>()
         .add_message::<UpgradeTower>()
         .add_message::<SellTower>()
@@ -39,6 +42,15 @@ pub fn plugin(app: &mut App) {
 /// The enabled radial-menu entry under the cursor, if any.
 #[derive(Resource, Default)]
 pub struct Hovered(pub Option<Action>);
+
+/// Holding Space fires only after a press seen in gameplay; the press that started the run
+/// is still held on its first frames.
+#[derive(Resource, Default)]
+struct FireArmed(bool);
+
+fn disarm_fire(mut armed: ResMut<FireArmed>) {
+    armed.0 = false;
+}
 
 /// Progress of a hold-to-sell, 0 to 1.
 #[derive(Resource, Default)]
@@ -135,6 +147,7 @@ fn read_intents(
     menu: Res<Menu>,
     wave: Res<WaveState>,
     mut hold: ResMut<SellHold>,
+    mut armed: ResMut<FireArmed>,
     spots: Query<(Entity, &Transform, Option<&Occupied>), With<BuildSpot>>,
     boats: Query<(Entity, &Transform, &Station), With<UBoat>>,
     camera: Single<(&Camera, &GlobalTransform)>,
@@ -144,7 +157,8 @@ fn read_intents(
     if keys.just_pressed(KeyCode::KeyT) || buttons.just_pressed(MouseButton::Right) {
         intents.trim.write(ToggleTrim);
     }
-    if keys.pressed(KeyCode::Space) {
+    armed.0 |= keys.just_pressed(KeyCode::Space);
+    if armed.0 && keys.pressed(KeyCode::Space) {
         intents.fire.write(FireTorpedo);
     }
     if keys.just_pressed(KeyCode::Escape) {

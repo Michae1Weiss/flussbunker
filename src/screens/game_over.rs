@@ -1,48 +1,38 @@
-//! Victory and defeat screens. One plugin: they differ by a string.
+//! Victory and defeat: one card over the map, again or back to the main menu.
 
-use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
-use super::{line, overlay_root, Screen};
+use super::widget::{button, card, heading, veil, Size};
+use super::Screen;
+use crate::game::art::Art;
 
 pub(super) fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(Screen::Victory), spawn_victory)
-        .add_systems(OnEnter(Screen::Defeat), spawn_defeat)
-        .add_systems(
-            Update,
-            back_to_title.run_if(
-                (in_state(Screen::Victory).or_else(in_state(Screen::Defeat)))
-                    .and_then(input_just_pressed(KeyCode::Space)),
-            ),
-        );
+    app.add_systems(OnEnter(Screen::Victory), |c: Commands, a: Res<Art>| {
+        spawn(c, a, "Der Fluss hält", Screen::Victory)
+    })
+    .add_systems(OnEnter(Screen::Defeat), |c: Commands, a: Res<Art>| {
+        spawn(c, a, "Bunker durchbrochen", Screen::Defeat)
+    });
 }
 
-fn spawn_victory(mut commands: Commands) {
-    commands.spawn((
-        Name::new("Victory UI"),
-        DespawnOnExit(Screen::Victory),
-        overlay_root(),
-        children![
-            line("DER FLUSS HAELT", 48.0, [0.70, 0.90, 0.72]),
-            line("Alle Wellen abgewehrt.", 22.0, [0.72, 0.76, 0.80]),
-            line("[ SPACE ]", 26.0, [0.92, 0.88, 0.60]),
-        ],
-    ));
-}
-
-fn spawn_defeat(mut commands: Commands) {
-    commands.spawn((
-        Name::new("Defeat UI"),
-        DespawnOnExit(Screen::Defeat),
-        overlay_root(),
-        children![
-            line("BUNKER DURCHBROCHEN", 48.0, [0.90, 0.55, 0.50]),
-            line("Die Boote sind durchgekommen.", 22.0, [0.72, 0.76, 0.80]),
-            line("[ SPACE ]", 26.0, [0.92, 0.88, 0.60]),
-        ],
-    ));
-}
-
-fn back_to_title(mut next: ResMut<NextState<Screen>>) {
-    next.set(Screen::Title);
+fn spawn(mut commands: Commands, art: Res<Art>, title: &str, screen: Screen) {
+    let root = veil(&mut commands, "End card", DespawnOnExit(screen));
+    let card = card(&mut commands, &art, root);
+    heading(&mut commands, card, title, 52.0);
+    button(
+        &mut commands,
+        &art,
+        card,
+        "Nochmal",
+        Size::Big,
+        |_: On<Pointer<Click>>, mut screen: ResMut<NextState<Screen>>| screen.set(Screen::Gameplay),
+    );
+    button(
+        &mut commands,
+        &art,
+        card,
+        "Hauptmenü",
+        Size::Normal,
+        |_: On<Pointer<Click>>, mut screen: ResMut<NextState<Screen>>| screen.set(Screen::Title),
+    );
 }

@@ -306,7 +306,7 @@ fn refresh(
                         treasury.marks >= cost,
                     )
                 } else {
-                    ("Ausgebaut".into(), "Ausgebaut".into(), false)
+                    ("Max".into(), "Max".into(), false)
                 };
                 Face {
                     picture,
@@ -359,7 +359,7 @@ fn refresh(
                     picture: None,
                     barrel: None,
                     short: String::new(),
-                    long: "Bestes Boot".into(),
+                    long: "Max".into(),
                     enabled: false,
                 },
             },
@@ -423,8 +423,11 @@ fn refresh(
     }
 }
 
+/// A pencil ring marks state only on the greybox disc; the drawn disc has its own edge, and
+/// its faded picture and hover growth say the same. The sell ring fills outside the disc.
 fn draw(
     mut strokes: ResMut<Strokes>,
+    art: Res<Art>,
     menu: Res<Menu>,
     hold: Res<SellHold>,
     hovered: Res<Hovered>,
@@ -434,6 +437,7 @@ fn draw(
         return;
     };
     let hovered = hovered.0;
+    let drawn = art.image("ui/disc.png").is_some();
 
     for entry in &open.entries {
         let centre = open.anchor + entry.offset;
@@ -443,12 +447,14 @@ fn draw(
             (true, true) => RED,
             (true, false) => INK,
         };
-        strokes.circle(centre, RADIAL_ENTRY_RADIUS, color);
+        if !drawn {
+            strokes.circle(centre, RADIAL_ENTRY_RADIUS, color);
+        }
 
         if entry.action == Action::Sell && hold.progress > 0.0 {
             strokes.arc(
                 centre,
-                RADIAL_ENTRY_RADIUS + 4.0,
+                RADIAL_ENTRY_RADIUS * 1.3,
                 std::f32::consts::TAU * hold.progress,
                 RED,
             );

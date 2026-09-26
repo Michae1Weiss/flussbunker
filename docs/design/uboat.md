@@ -21,6 +21,8 @@ Exactly one boat, present from the first second. It is the identity of the game
 - Surfaced: can fire, can be shelled by destroyers, collides with ships.
 - Submerged: safe, blind (cannot fire), ships pass over it.
 - The transition time and the slower submerged speed are the whole cost of diving.
+- Never taught (2026-09-26): no key hint, no note. A move to discover, like ramming; the boat
+  note shows a dive icon while under water.
 
 ## Torpedoes
 

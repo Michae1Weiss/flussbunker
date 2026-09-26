@@ -10,10 +10,13 @@ src/
 ├── main.rs             window + GamePlugin, nothing else
 ├── game_plugin.rs      composition root; the ONE place ordering is declared
 ├── balance.rs          every tuning number, engine-free (RON asset once numbers churn)
+├── settings.rs         what the player sets: volumes, hints
 ├── dev_tools.rs        #[cfg(feature = "dev")]
-├── screens/            title · gameplay · game_over   (state flow, DespawnOnExit)
+├── screens/            `Screen` and `Menu` states, DespawnOnExit: title (main menu) · pause ·
+│                       settings · game_over · widget (paper card, button)
 └── game/               one plugin per feature: map, uboat, tower, enemy, projectile,
-                        combat, destruction, wave, economy, bunker, input, hud, telemetry
+                        combat, destruction, wave, economy, bunker, input, hud, pace,
+                        notes, cursor, audio, art, telemetry, ...
 examples/               feel harnesses: a minimal App around ONE crate plugin, runnable on its own
 ```
 
@@ -39,7 +42,8 @@ and consume moves to a shared `contract.rs` — not before.
 ## Ordering
 
 One `SystemSet` chain declared once in `game_plugin.rs` (`Spawn → Movement → Targeting → Damage →
-Death`), gated once with `run_if(in_state(Screen::Gameplay))`. No system anywhere says `.after()`.
+Death`), gated once with `run_if(in_state(Screen::Gameplay))`; input sampling additionally only
+under `Menu::None`. No system anywhere says `.after()`.
 The schedule rationale is commented there and nowhere else (`docs/COMMENTS.md` §5).
 
 - `FixedUpdate`: movement, targeting, damage, chains. Deterministic, frame-rate independent.

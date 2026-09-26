@@ -126,9 +126,36 @@ Its own layout, so the first sheet stays valid. Same brushes, same legend, same 
   (first, strongest, weakest, nearest), upgrade, sell. Ink on paper, flat, readable at 24 px.
 - **Stroke** `ui/stroke`: one pencil line along the middle of a long strip, its left and right
   ends joining seamlessly. The game lays it around every range circle and along every line, at
-  the same width for any radius.
+  the same width for any radius, and exactly as thick as drawn: draw the line as heavy as it
+  should look.
 
 Paper UI and icons are exported at 8 px per world unit instead of 3: the UI grows with the window.
+
+## The third sheet: hints and cursors
+
+```bash
+python3 tools/art_fit.py sheet --set hints art/guides/sheet_hints.png
+python3 tools/art_fit.py slice --set hints art/drawn/sheet_hints.png
+```
+
+The pictures that teach without words (`docs/design/onboarding.md`) and the mouse cursors.
+
+| File | World units | Exported | Style | What |
+|---|---|---|---|---|
+| `ui/hints/mouse_0` | 32 x 40 | 256 x 320 | sticker | a mouse, left button plain |
+| `ui/hints/mouse_1` | 32 x 40 | 256 x 320 | sticker | the same mouse, left button filled red, two or three short click strokes |
+| `ui/hints/space_0` | 72 x 24 | 576 x 192 | sticker | the Space key up, its side visible; no lettering |
+| `ui/hints/space_1` | 72 x 24 | 576 x 192 | sticker | the same key pressed: the cap lower, the side thinner |
+| `ui/cursors/pencil` | 12 x 12 | 48 x 48 | flat | the default cursor; tip at the top left |
+| `ui/cursors/steer` | 12 x 12 | 48 x 48 | flat | over the water; a steering mark, its centre is the click point |
+| `ui/cursors/build` | 12 x 12 | 48 x 48 | flat | over an empty build spot; a hammer, head at the top left |
+| `ui/cursors/hand` | 12 x 12 | 48 x 48 | flat | over anything that opens or presses; fingertip at the top left |
+
+- Two frames of one drawing: draw frame 0, trace it for frame 1 and change only the pressed
+  part, or the picture jumps instead of clicking.
+- Cursors sit on paper and on water: ink with a thin white outline, no paper. They are screen
+  pixels, not world units, exported at 4 px per unit. The click points are set in
+  `src/game/cursor.rs`; move one there if the drawing puts it elsewhere.
 
 ## The map
 

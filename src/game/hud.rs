@@ -1,16 +1,18 @@
-//! Three paper notes (RM with tweened value and floating transactions, wave, boat), the
-//! Tab overlay (ranges, reloads, targeting, HP of damaged ships, the boat's hull and
-//! torpedoes, route, shelling reach) and enemy health bars. Key hints on the boat note stay
-//! only until each action was used once. Reads other features' state; sole writer of
-//! `DisplayedMarks`, `Overlay`, `OverlayLabel`, `OverlayIcon`, `Learned`.
+//! Four paper notes (RM top right with tweened value and floating transactions, wave top
+//! left, the boat's torpedoes and hull bottom left, the bunker's integrity bottom right next
+//! to the bunker), the Tab overlay (ranges,
+//! reloads, targeting, HP of damaged ships, torpedo lane, route, shelling reach) and enemy
+//! health bars. Pictures where drawn, words only where not. Reads other features' state;
+//! sole writer of `DisplayedMarks`, `Overlay`, `OverlayLabel`, `OverlayIcon`.
 //! Rules: docs/design/ui-input.md
 
 use bevy::prelude::*;
 
-use crate::balance::{RM_TWEEN_SECONDS, TORPEDO_RUN, Z_UI};
+use crate::balance::BoatModel;
+use crate::balance::{RM_TWEEN_SECONDS, Z_UI};
 use crate::game::art::{paper_backing, Art, PaperTag};
 use crate::game::bunker::Integrity;
-use crate::game::combat::{Fired, Health, Weapon};
+use crate::game::combat::Health;
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, Shelling};
 use crate::game::input::ToggleOverlay;
@@ -18,7 +20,7 @@ use crate::game::map::RiverPath;
 use crate::game::palette::{FAINT, GAIN, INK, NOTE, PENCIL, RED};
 use crate::game::stroke::Strokes;
 use crate::game::tower::{Gun, Range, Targeting, Tower};
-use crate::game::uboat::{Flotilla, Heading, Station, Torpedoes, Trim, UBoat};
+use crate::game::uboat::{DryFire, Flotilla, Heading, Lane, Station, Torpedoes, Trim, UBoat};
 use crate::game::wave::WaveState;
 use crate::game_plugin::Frame;
 use crate::screens::Screen;
@@ -26,21 +28,18 @@ use crate::screens::Screen;
 pub fn plugin(app: &mut App) {
     app.init_resource::<DisplayedMarks>()
         .init_resource::<Overlay>()
-        .init_resource::<Learned>()
-        .add_systems(
-            OnEnter(Screen::Gameplay),
-            (spawn_notes, reset_marks, reset_learned),
-        )
+        .add_systems(OnEnter(Screen::Gameplay), (spawn_notes, reset_marks))
         .add_systems(
             Update,
             (
                 scale_ui,
                 toggle_overlay,
-                learn,
                 tween_marks,
                 update_rm_note,
                 update_wave_note,
+                update_bunker,
                 update_boat_note,
+                flash_empty_tubes,
                 float_transactions,
                 draw_health_bars,
                 draw_route,
@@ -60,13 +59,6 @@ pub fn plugin(app: &mut App) {
 pub struct DisplayedMarks {
     pub shown: f32,
     last: u32,
-}
-
-/// Which boat controls the player has used this run; their hints go once they have.
-#[derive(Resource, Default)]
-pub struct Learned {
-    dived: bool,
-    fired: bool,
 }
 
 /// The tactical overlay, toggled with Tab. A mode, not a peek.
@@ -90,7 +82,25 @@ struct RmPaper;
 struct WaveNote;
 
 #[derive(Component)]
-struct BoatNote;
+struct BunkerText;
+
+#[derive(Component)]
+struct BoatName;
+
+/// Shown only while the boat is under water.
+#[derive(Component)]
+struct DiveIcon;
+
+/// The row of torpedoes and hull; hidden while the boat is sunk.
+#[derive(Component)]
+struct Gauges;
+
+/// Torpedo tube `n`: inked while loaded, faint while empty, gone beyond the model's tubes.
+#[derive(Component)]
+struct TorpedoPip(u8);
+
+#[derive(Component)]
+struct HullText;
 
 /// The targeting mode as a drawn icon under a turret in the overlay; replaces the text
 /// label once the icon exists. Despawned with its turret.
@@ -112,17 +122,9 @@ pub struct OverlayLabel {
 /// Logical window height the UI sizes are designed for.
 const UI_REFERENCE_HEIGHT: f32 = 800.0;
 
-/// A paper note pinned at `place`: the drawn paper if there is one, an optional icon, and
-/// its text in a child carrying `marker`.
-fn spawn_note(
-    commands: &mut Commands,
-    art: &Art,
-    name: &'static str,
-    place: Node,
-    size: f32,
-    icon: Option<&str>,
-    marker: impl Bundle,
-) -> Entity {
+/// A paper note pinned at `place`: the drawn paper if there is one, its content in a row
+/// (or whatever `place` sets).
+fn spawn_note(commands: &mut Commands, art: &Art, name: &'static str, place: Node) -> Entity {
     let backing = paper_backing(art, "ui/note.png");
     let mut paper = commands.spawn((
         Name::new(name),
@@ -142,17 +144,36 @@ fn spawn_note(
     if let Some(backing) = backing {
         commands.spawn((backing, ChildOf(paper)));
     }
-    if let Some(image) = icon.and_then(|key| art.image(key)) {
-        commands.spawn((
-            ImageNode::new(image),
-            Node {
-                width: Val::Px(size * 1.2),
-                height: Val::Px(size * 1.2),
-                ..default()
-            },
-            ChildOf(paper),
-        ));
-    }
+    paper
+}
+
+/// A drawn icon `size` pixels high in `parent`, if the drawing exists.
+fn icon(
+    commands: &mut Commands,
+    art: &Art,
+    key: &str,
+    size: f32,
+    parent: Entity,
+    extra: impl Bundle,
+) -> Option<Entity> {
+    let image = art.image(key)?;
+    Some(
+        commands
+            .spawn((
+                ImageNode::new(image),
+                Node {
+                    width: Val::Px(size),
+                    height: Val::Px(size),
+                    ..default()
+                },
+                extra,
+                ChildOf(parent),
+            ))
+            .id(),
+    )
+}
+
+fn text(commands: &mut Commands, size: f32, parent: Entity, marker: impl Bundle) {
     commands.spawn((
         marker,
         Text::new(String::new()),
@@ -161,72 +182,107 @@ fn spawn_note(
             ..default()
         },
         TextColor(INK),
-        ChildOf(paper),
+        ChildOf(parent),
     ));
-    paper
+}
+
+fn row(commands: &mut Commands, gap: f32, parent: Entity, extra: impl Bundle) -> Entity {
+    commands
+        .spawn((
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(gap),
+                ..default()
+            },
+            extra,
+            ChildOf(parent),
+        ))
+        .id()
 }
 
 fn spawn_notes(mut commands: Commands, art: Res<Art>) {
-    let top_left = Node {
-        top: Val::Px(10.0),
-        left: Val::Px(12.0),
-        ..default()
-    };
     let rm = spawn_note(
         &mut commands,
         &art,
         "RM note",
-        top_left,
-        26.0,
-        Some("ui/icons/coin.png"),
-        RmNote,
+        Node {
+            top: Val::Px(10.0),
+            right: Val::Px(12.0),
+            ..default()
+        },
     );
     commands.entity(rm).insert(RmPaper);
-    let top_right = Node {
-        top: Val::Px(10.0),
-        right: Val::Px(12.0),
-        ..default()
-    };
-    spawn_note(
+    icon(&mut commands, &art, "ui/icons/coin.png", 31.0, rm, ());
+    text(&mut commands, 26.0, rm, RmNote);
+
+    let wave = spawn_note(
         &mut commands,
         &art,
         "Wave note",
-        top_right,
-        19.0,
-        None,
-        WaveNote,
+        Node {
+            top: Val::Px(10.0),
+            left: Val::Px(12.0),
+            ..default()
+        },
     );
-    let bottom_left = Node {
-        bottom: Val::Px(10.0),
-        left: Val::Px(12.0),
-        ..default()
-    };
-    spawn_note(
+    text(&mut commands, 22.0, wave, WaveNote);
+
+    let bunker = spawn_note(
+        &mut commands,
+        &art,
+        "Bunker note",
+        Node {
+            bottom: Val::Px(10.0),
+            right: Val::Px(12.0),
+            ..default()
+        },
+    );
+    icon(&mut commands, &art, "ui/icons/bunker.png", 28.0, bunker, ());
+    text(&mut commands, 24.0, bunker, BunkerText);
+
+    let boat = spawn_note(
         &mut commands,
         &art,
         "Boat note",
-        bottom_left,
-        19.0,
-        None,
-        BoatNote,
+        Node {
+            bottom: Val::Px(10.0),
+            left: Val::Px(12.0),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(2.0),
+            ..default()
+        },
     );
-}
-
-fn reset_learned(mut learned: ResMut<Learned>) {
-    *learned = Learned::default();
-}
-
-fn learn(
-    mut fired: MessageReader<Fired>,
-    boats: Query<&Trim, With<UBoat>>,
-    mut learned: ResMut<Learned>,
-) {
-    if fired.read().any(|shot| shot.weapon == Weapon::Torpedo) {
-        learned.fired = true;
+    let name = row(&mut commands, 6.0, boat, ());
+    text(&mut commands, 20.0, name, BoatName);
+    icon(
+        &mut commands,
+        &art,
+        "ui/icons/dive.png",
+        22.0,
+        name,
+        DiveIcon,
+    );
+    let gauges = row(&mut commands, 1.0, boat, (Gauges, UiTransform::default()));
+    let most_tubes = BoatModel::ALL.iter().map(|m| m.stats().tubes).max();
+    for n in 0..most_tubes.unwrap_or(0) {
+        icon(
+            &mut commands,
+            &art,
+            "ui/icons/torpedo.png",
+            22.0,
+            gauges,
+            TorpedoPip(n),
+        );
     }
-    if boats.iter().any(|trim| !matches!(trim, Trim::Surfaced)) {
-        learned.dived = true;
-    }
+    commands.spawn((
+        Node {
+            width: Val::Px(12.0),
+            ..default()
+        },
+        ChildOf(gauges),
+    ));
+    icon(&mut commands, &art, "ui/icons/hull.png", 22.0, gauges, ());
+    text(&mut commands, 20.0, gauges, HullText);
 }
 
 /// Sizes are designed at 800 logical pixels high; larger windows scale the UI up.
@@ -271,9 +327,9 @@ fn tween_marks(
                 TextColor(if delta > 0 { GAIN } else { RED }),
                 Node {
                     position_type: PositionType::Absolute,
-                    left: Val::Percent(100.0),
+                    right: Val::Percent(100.0),
                     top: Val::Px(6.0),
-                    margin: UiRect::left(Val::Px(8.0)),
+                    margin: UiRect::right(Val::Px(8.0)),
                     ..default()
                 },
                 ChildOf(note),
@@ -318,60 +374,116 @@ fn update_rm_note(
     };
 }
 
-fn update_wave_note(
-    mut note: Single<&mut Text, With<WaveNote>>,
+fn update_wave_note(mut note: Single<&mut Text, With<WaveNote>>, wave: Res<WaveState>) {
+    let wanted = wave.label();
+    if note.0 != wanted {
+        note.0 = wanted;
+    }
+}
+
+fn update_bunker(
+    mut note: Single<&mut Text, With<BunkerText>>,
     integrity: Res<Integrity>,
-    wave: Res<WaveState>,
-    time: Res<Time<Virtual>>,
+    art: Res<Art>,
 ) {
-    let mut lines = vec![
-        format!("Welle {}", wave.label()),
-        format!("Bunker {}", integrity.0),
-    ];
-    if !wave.prologue && !wave.running && !wave.preview().is_empty() {
-        lines.push(format!("Enter: {}", wave.preview()));
+    let wanted = if art.image("ui/icons/bunker.png").is_some() {
+        integrity.0.to_string()
+    } else {
+        format!("Bunker {}", integrity.0)
+    };
+    if note.0 != wanted {
+        note.0 = wanted;
     }
-    if time.relative_speed() > 1.0 {
-        lines.push("2× Tempo".into());
-    }
-    note.0 = lines.join("\n");
 }
 
 fn update_boat_note(
-    mut note: Single<&mut Text, With<BoatNote>>,
     flotilla: Res<Flotilla>,
-    learned: Res<Learned>,
+    art: Res<Art>,
     boats: Query<(&Health, &Torpedoes, &Trim), With<UBoat>>,
+    mut texts: ParamSet<(
+        Single<&mut Text, With<BoatName>>,
+        Single<&mut Text, With<HullText>>,
+    )>,
+    mut nodes: Query<(&mut Node, Has<Gauges>, Has<DiveIcon>), Without<TorpedoPip>>,
+    mut pips: Query<(&TorpedoPip, &mut ImageNode, &mut Node)>,
 ) {
     let stats = flotilla.model.stats();
-    let Ok((health, torpedoes, trim)) = boats.single() else {
-        note.0 = format!("{} gesunken\nkehrt nach der Welle zurück", stats.name);
+    let boat = boats.single().ok();
+    texts.p0().0 = match boat {
+        Some(_) => stats.name.to_string(),
+        None => format!("{} gesunken", stats.name),
+    };
+    let submerged = boat.is_some_and(|(_, _, trim)| !matches!(trim, Trim::Surfaced));
+    for (mut node, gauges, dive) in &mut nodes {
+        let shown = match (gauges, dive) {
+            (true, _) => boat.is_some(),
+            (_, true) => submerged,
+            _ => continue,
+        };
+        node.display = if shown { Display::Flex } else { Display::None };
+    }
+    let Some((health, torpedoes, _)) = boat else {
         return;
     };
 
-    let pips: String = (0..stats.tubes)
-        .map(|i| if i < torpedoes.loaded { '•' } else { '-' })
-        .collect();
-
-    let mut lines = vec![
-        format!("{}, {}", stats.name, trim.label()),
-        format!(
-            "Torpedos {}   Rumpf {:.0}%",
-            pips,
-            health.fraction() * 100.0
-        ),
-    ];
-    let hints: Vec<&str> = [
-        (!learned.dived).then_some("Rechtsklick: tauchen"),
-        (!learned.fired).then_some("Leertaste: Torpedo"),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    if !hints.is_empty() {
-        lines.push(hints.join("   "));
+    let drawn_tubes = !pips.is_empty();
+    for (pip, mut image, mut node) in &mut pips {
+        let alpha = if pip.0 < torpedoes.loaded { 1.0 } else { 0.25 };
+        image.color = Color::WHITE.with_alpha(alpha);
+        node.display = if pip.0 < stats.tubes {
+            Display::Flex
+        } else {
+            Display::None
+        };
     }
-    note.0 = lines.join("\n");
+    let hull = format!("{:.0}%", health.fraction() * 100.0);
+    let mut words = Vec::new();
+    if !drawn_tubes {
+        words.push(format!("Torpedos {}/{}", torpedoes.loaded, stats.tubes));
+    }
+    if art.image("ui/icons/hull.png").is_none() {
+        words.push(format!("Rumpf {hull}"));
+    } else {
+        words.push(hull);
+    }
+    let wanted = words.join("   ");
+    let mut text = texts.p1();
+    if text.0 != wanted {
+        text.0 = wanted;
+    }
+}
+
+/// Seconds the torpedo row shakes, washes red and shows its empty tubes after fire found
+/// none loaded. A red tint would not show on black ink, hence the wash.
+const DRY_FLASH: f32 = 0.5;
+
+fn flash_empty_tubes(
+    time: Res<Time<Real>>,
+    mut dry: MessageReader<DryFire>,
+    mut left: Local<f32>,
+    mut row: Query<(&mut UiTransform, &mut BackgroundColor), With<Gauges>>,
+    mut pips: Query<(&TorpedoPip, &mut ImageNode)>,
+    boats: Query<&Torpedoes, With<UBoat>>,
+) {
+    if dry.read().count() > 0 {
+        *left = DRY_FLASH;
+    }
+    *left = (*left - time.delta_secs()).max(0.0);
+    let strength = *left / DRY_FLASH;
+    for (mut transform, mut wash) in &mut row {
+        let shake = (time.elapsed_secs() * 70.0).sin() * 4.0 * strength;
+        transform.translation = Val2::px(shake, 0.0);
+        wash.0 = RED.with_alpha(0.35 * strength);
+    }
+    if strength == 0.0 {
+        return;
+    }
+    let loaded = boats.single().map_or(0, |t| t.loaded);
+    for (pip, mut image) in &mut pips {
+        if pip.0 >= loaded {
+            image.color = Color::WHITE.with_alpha(0.25 + 0.75 * strength);
+        }
+    }
 }
 
 fn draw_health_bars(
@@ -437,26 +549,17 @@ fn draw_overlay(
         );
     }
     for (transform, station, heading) in &boats {
-        let tangent = path.tangent_at(station.along);
-        let axis = if heading.0.dot(tangent) >= 0.0 {
-            tangent
-        } else {
-            -tangent
-        };
-        let from = transform.translation.truncate();
-        let end = path.straight_end(station.along, axis.dot(tangent) > 0.0);
-        let to = path.point_at(end);
-        let run = from.distance(to).min(TORPEDO_RUN);
-        strokes.line(from, from + axis * run, RED);
+        let lane = Lane::new(&path, transform.translation.truncate(), station, heading);
+        strokes.line(lane.from, lane.from + lane.axis * lane.length, RED);
     }
 }
 
-/// Every enemy, turret and the boat gets one overlay label when it appears.
+/// Every enemy and turret gets one overlay label when it appears; the boat's state is on
+/// its note.
 fn attach_labels(
     mut commands: Commands,
     enemies: Query<Entity, Added<Enemy>>,
     towers: Query<Entity, Added<Tower>>,
-    boats: Query<Entity, Added<UBoat>>,
 ) {
     let spawn = |commands: &mut Commands, subject: Entity, offset: Vec2| {
         commands.spawn((
@@ -490,9 +593,6 @@ fn attach_labels(
             Visibility::Hidden,
             Transform::from_translation(Vec3::new(0.0, 0.0, Z_UI)),
         ));
-    }
-    for boat in &boats {
-        spawn(&mut commands, boat, Vec2::new(0.0, -28.0));
     }
 }
 
@@ -553,7 +653,6 @@ fn update_labels(
     subjects: Query<&Transform, Without<OverlayLabel>>,
     enemies: Query<&Health, With<Enemy>>,
     towers: Query<&Targeting, With<Tower>>,
-    boats: Query<(&Health, &Torpedoes), With<UBoat>>,
 ) {
     for (entity, label, mut text, mut visibility, mut transform) in &mut labels {
         let Ok(subject) = subjects.get(label.subject) else {
@@ -573,12 +672,6 @@ fn update_labels(
             } else {
                 targeting.label().to_string()
             }
-        } else if let Ok((health, torpedoes)) = boats.get(label.subject) {
-            format!(
-                "Rumpf {:.0}%, {} Torpedos",
-                health.fraction() * 100.0,
-                torpedoes.loaded
-            )
         } else {
             String::new()
         };

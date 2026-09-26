@@ -7,7 +7,8 @@ use bevy::prelude::*;
 use crate::balance::{MAP_HEIGHT_TILES, MAP_WIDTH_TILES, TILE_SIZE};
 use crate::{
     game,
-    screens::{self, Screen},
+    screens::{self, Menu, Screen},
+    settings::Settings,
 };
 
 pub struct GamePlugin;
@@ -24,7 +25,7 @@ pub enum Sim {
     Death,
 }
 
-/// Per-frame work in `Update`: input sampling, then drawing.
+/// Per-frame work in `Update`: input sampling (not under a menu), then drawing.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Frame {
     Input,
@@ -48,8 +49,19 @@ pub fn harness(app: &mut App) {
 }
 
 fn core(app: &mut App) {
+    // The pencil font replaces Bevy's built-in one in the default handle, so every text is
+    // laid out in it from its first frame on.
+    app.world_mut()
+        .resource_mut::<Assets<Font>>()
+        .insert(
+            AssetId::default(),
+            Font::from_bytes(include_bytes!("../assets/fonts/pencil.ttf").to_vec()),
+        )
+        .expect("the default font handle is a valid id");
     app.insert_resource(ClearColor(game::palette::PAPER))
         .insert_resource(Time::<Fixed>::from_hz(64.0))
+        .init_resource::<Settings>()
+        .init_state::<Menu>()
         .add_systems(Startup, spawn_camera);
 
     app.configure_sets(
@@ -70,6 +82,7 @@ fn core(app: &mut App) {
             .chain()
             .run_if(in_state(Screen::Gameplay)),
     );
+    app.configure_sets(Update, Frame::Input.run_if(in_state(Menu::None)));
 }
 
 fn spawn_camera(mut commands: Commands) {

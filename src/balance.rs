@@ -344,6 +344,8 @@ pub struct BoatStats {
 }
 
 impl BoatModel {
+    pub const ALL: [BoatModel; 3] = [BoatModel::ViiA, BoatModel::ViiC, BoatModel::IxC];
+
     pub const fn stats(self) -> BoatStats {
         match self {
             BoatModel::ViiA => BoatStats {

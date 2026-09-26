@@ -15,12 +15,12 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TAKES=$ROOT/sound/takes
 OUT=$ROOT/assets/audio
 THRESHOLD=${THRESHOLD:--48}
-LOOPS=" torpedo_run "
+LOOPS=" torpedo_run engine "
 MUSIC=" build wave "
 MAX_VARIANTS=8
 LONGEST=4
 GAP=1
-KEYS=" $(sed -nE 's/.*spec\("([a-z0-9_]+)".*/\1/p' "$ROOT/src/game/audio.rs" | tr '\n' ' ')torpedo_run "
+KEYS=" $(sed -nE 's/.*spec\("([a-z0-9_]+)".*/\1/p' "$ROOT/src/game/audio.rs" | tr '\n' ' ')torpedo_run engine "
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

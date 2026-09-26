@@ -42,6 +42,11 @@ game before any further code. Decisions, with reasons:
 | Audio is recorded or sourced by the designer to a written spec (`AUDIO.md`) | the spec fixes length, level and moment, so any source fits the mix |
 | Key hints vanish after first use; the overlay hides HP of undamaged ships (M9) | the screen was overloaded; a hint the player has acted on is noise, and full HP is not news |
 | Hulls x1.8, emplacements x1.5 (2026-09-22) | the PoC sizes put an MTB at 8 x 13 px at 1280x800, below what any drawing can make readable; the first art in the game showed it. Convoys get longer, debris hits big hulls more often |
+| Show, don't tell (2026-09-26, designer's call) | nobody reads in games: the title's instruction card, key hints on the notes and long banner lines go; animated drawings (mouse on the water, Space by the boat), context cursors, a next-wave and a speed button and a picture preview at the river mouth say the same without words |
+| Diving stays, but is no longer taught (2026-09-26) | the designer never used it in play; teaching a move nobody needs costs attention. It stays as discovery, like ramming; the destroyer's ranging-in still warns |
+| Paper main, pause and settings menus; Esc pauses (2026-09-26) | a standard game frame players expect; the pause banner that let the map keep running under Esc was a half-measure |
+| The pencil font replaces Bevy's default font (2026-09-26) | swapping the font per text entity showed one frame of FiraMono on every new banner; as the default it cannot flicker |
+| Stroke band as wide as its texture (2026-09-26) | the 3-unit band squeezed the drawn pencil line to a third, about one screen pixel; now the line is as thick as drawn |
 
 ## Rejected ideas
 
@@ -79,7 +84,8 @@ game before any further code. Decisions, with reasons:
 | Testers do not forget the boat mid-wave | `uboat.md` | ≥2/5 leave it docked for a whole wave → add auto-fire baseline |
 | Stop-turn-go at bends is not annoying | `uboat.md` | testers complain about standing still at bends → let small angles turn while moving |
 | Losing the boat costs the wave plus a 30 % bill, and that feels fair | `uboat.md` | rage-quits after a loss |
-| Ranging-in warning is enough to learn diving | `onboarding.md` | <3/5 dive in the first destroyer wave |
+| Diving is not needed to win, discovered or not | `uboat.md` | destroyer waves sink the boat for testers who never dive → teach it again, or let it dive on its own |
+| Two-frame drawings teach move and fire without words | `onboarding.md` | ≥2/5 testers have not moved the boat 20 s into the prologue |
 | Prologue bounty size gives one real decision | `economy.md` | everyone buys the same thing |
 | Three boat models change behaviour enough to matter | `uboat.md` | testers cannot say what changed after buying one |
 | 60 % economy target produces tension | `economy.md` | money left over at wave 12 |

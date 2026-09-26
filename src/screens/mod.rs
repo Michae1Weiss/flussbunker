@@ -1,9 +1,13 @@
-//! Screen flow: one `Screen` state; `DespawnOnExit` does all cleanup.
+//! Screen flow: `Screen` is where the game is, `Menu` which paper menu lies on top of it.
+//! `DespawnOnExit` does all cleanup.
 
 use bevy::prelude::*;
 
 mod game_over;
+mod pause;
+mod settings;
 mod title;
+pub mod widget;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Screen {
@@ -14,33 +18,22 @@ pub enum Screen {
     Defeat,
 }
 
+/// The menu on top of the screen. The world takes input only under `Menu::None`.
+#[derive(States, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Menu {
+    #[default]
+    None,
+    Main,
+    Pause,
+    Settings,
+}
+
 pub fn plugin(app: &mut App) {
-    app.init_state::<Screen>()
-        .add_plugins((title::plugin, game_over::plugin));
-}
-
-pub fn overlay_root() -> impl Bundle {
-    (
-        Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            row_gap: Val::Px(14.0),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.03, 0.05, 0.07, 0.88)),
-    )
-}
-
-pub fn line(text: &str, size: f32, rgb: [f32; 3]) -> impl Bundle {
-    (
-        Text::new(text.to_string()),
-        TextFont {
-            font_size: FontSize::Px(size),
-            ..default()
-        },
-        TextColor(Color::srgb(rgb[0], rgb[1], rgb[2])),
-    )
+    app.init_state::<Screen>().add_plugins((
+        title::plugin,
+        pause::plugin,
+        settings::plugin,
+        game_over::plugin,
+        widget::plugin,
+    ));
 }

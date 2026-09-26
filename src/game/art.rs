@@ -1,7 +1,7 @@
 //! The art layer: swaps greybox rectangles for sprites from `assets/` when the files
-//! exist, applies the handwriting font, lays the painted map under the river. Gameplay
-//! never knows whether a sprite is a rectangle or a drawing. Sole writer of `Art`,
-//! `Sprite::image`, `TextFont::font`, and of a drawn barrel's size and anchor.
+//! exist and lays the painted map under the river. Gameplay never knows whether a sprite is
+//! a rectangle or a drawing. Sole writer of `Art`, `Sprite::image`, and of a drawn barrel's
+//! size and anchor. The handwriting font is the default font (`game_plugin`).
 //! Asset list and sizes: docs/ART.md
 
 use std::collections::HashMap;
@@ -26,28 +26,34 @@ use crate::game_plugin::Frame;
 use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
-    app.init_resource::<Art>()
-        .add_systems(OnEnter(Screen::Gameplay), lay_background)
-        .add_systems(Update, apply_font)
-        .add_systems(
-            Update,
-            (
-                dress_enemies,
-                dress_towers,
-                dress_barrels,
-                (dress_tags, fit_tags).chain(),
-                dress_boats,
-                dress_projectiles,
-                dress_debris,
-                dress_craters,
-                dress_splashes,
-                dress_bunker,
-                dress_spots,
-                show_spots,
-                hide_river,
-            )
-                .in_set(Frame::Present),
-        );
+    app.init_resource::<Art>();
+    for screen in [
+        Screen::Title,
+        Screen::Gameplay,
+        Screen::Victory,
+        Screen::Defeat,
+    ] {
+        app.add_systems(OnEnter(screen), lay_background);
+    }
+    app.add_systems(
+        Update,
+        (
+            dress_enemies,
+            dress_towers,
+            dress_barrels,
+            (dress_tags, fit_tags).chain(),
+            dress_boats,
+            dress_projectiles,
+            dress_debris,
+            dress_craters,
+            dress_splashes,
+            dress_bunker,
+            dress_spots,
+            show_spots,
+            hide_river,
+        )
+            .in_set(Frame::Present),
+    );
 }
 
 /// Handles for every asset that exists on disk. Missing files stay greybox. Loaded when the
@@ -55,7 +61,6 @@ pub fn plugin(app: &mut App) {
 #[derive(Resource)]
 pub struct Art {
     images: HashMap<String, Handle<Image>>,
-    font: Option<Handle<Font>>,
 }
 
 impl Art {
@@ -136,7 +141,7 @@ pub const ICONS: [&str; 12] = [
     "sell",
 ];
 
-fn enemy_key(kind: EnemyKind) -> &'static str {
+pub fn enemy_key(kind: EnemyKind) -> &'static str {
     match kind {
         EnemyKind::MotorTorpedoBoat => "sprites/ships/mtb.png",
         EnemyKind::Corvette => "sprites/ships/corvette.png",
@@ -222,6 +227,10 @@ fn manifest() -> Vec<String> {
         .map(String::from),
     );
     keys.extend(ICONS.map(|name| format!("ui/icons/{name}.png")));
+    keys.extend(["pencil", "steer", "build", "hand"].map(|name| format!("ui/cursors/{name}.png")));
+    for name in ["mouse", "space"] {
+        keys.extend((0..2).map(|i| format!("ui/hints/{name}_{i}.png")));
+    }
     keys
 }
 
@@ -247,13 +256,8 @@ impl FromWorld for Art {
             .filter(|key| exists(key))
             .map(|key| (key.clone(), assets.load(key)))
             .collect();
-        let font = exists("fonts/pencil.ttf").then(|| assets.load("fonts/pencil.ttf"));
-        info!(
-            "art layer: {} images, font: {}",
-            images.len(),
-            font.is_some()
-        );
-        Self { images, font }
+        info!("art layer: {} images", images.len());
+        Self { images }
     }
 }
 
@@ -437,13 +441,14 @@ fn show_spots(
 }
 
 /// The painted map covers the world plus its bleed under everything; the greybox river hides.
-fn lay_background(art: Res<Art>, mut commands: Commands) {
+/// Under every screen: the menus lie on the map too.
+fn lay_background(art: Res<Art>, screen: Res<State<Screen>>, mut commands: Commands) {
     let Some(image) = art.image("map/background.png") else {
         return;
     };
     commands.spawn((
         Name::new("Background"),
-        DespawnOnExit(Screen::Gameplay),
+        DespawnOnExit(screen.get().clone()),
         Sprite {
             image,
             custom_size: Some(
@@ -461,14 +466,5 @@ fn hide_river(art: Res<Art>, mut segments: Query<&mut Visibility, Added<RiverSeg
     }
     for mut visibility in &mut segments {
         *visibility = Visibility::Hidden;
-    }
-}
-
-fn apply_font(art: Res<Art>, mut fonts: Query<&mut TextFont, Added<TextFont>>) {
-    let Some(font) = art.font.as_ref() else {
-        return;
-    };
-    for mut text_font in &mut fonts {
-        text_font.font = FontSource::Handle(font.clone());
     }
 }

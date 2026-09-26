@@ -6,12 +6,12 @@ use bevy::prelude::*;
 
 use crate::balance::{
     BoatModel, SizeClass, DECK_GUN_DAMAGE, DECK_GUN_RANGE, DECK_GUN_RELOAD, DECK_GUN_SHELL_SPEED,
-    DOCK_REPAIR_PER_SECOND, RAM_HEAVY_COST, RAM_LIGHT_COST, RAM_SHOVE, REPAIR_BILL, TILE_SIZE,
-    TORPEDO_RUN, TORPEDO_SPEED, UBOAT_BEAM, UBOAT_FIRE_ALIGNMENT, UBOAT_LENGTH, UBOAT_LENGTH_STEP,
-    UBOAT_MOVE_ALIGNMENT, UBOAT_REARM_SECONDS, UBOAT_SALVO_SPACING, UBOAT_SUBMERGED_SPEED_FACTOR,
-    UBOAT_TURN_RATE, UNPAID_RETURN_HP, Z_UBOAT,
+    DOCK_REPAIR_PER_SECOND, RAM_HEAVY_COST, RAM_LIGHT_COST, RAM_SHOVE, REPAIR_BILL,
+    RIVER_HALF_WIDTH, TILE_SIZE, TORPEDO_RUN, TORPEDO_SPEED, UBOAT_BEAM, UBOAT_FIRE_ALIGNMENT,
+    UBOAT_LENGTH, UBOAT_LENGTH_STEP, UBOAT_MOVE_ALIGNMENT, UBOAT_REARM_SECONDS,
+    UBOAT_SALVO_SPACING, UBOAT_SUBMERGED_SPEED_FACTOR, UBOAT_TURN_RATE, UNPAID_RETURN_HP, Z_UBOAT,
 };
-use crate::game::combat::{Damage, DamageKind, Fired, Health, LastHitBy, Sunk, Weapon};
+use crate::game::combat::{Damage, DamageKind, Fired, Health, Sunk, Weapon};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{Enemy, EnemyType};
 use crate::game::input::{FireTorpedo, MoveUBoat, ToggleTrim, UpgradeBoat};
@@ -24,6 +24,7 @@ use crate::screens::Screen;
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Flotilla>()
+        .add_message::<DryFire>()
         .add_systems(OnEnter(Screen::Gameplay), reset)
         .add_systems(
             FixedUpdate,
@@ -37,14 +38,7 @@ pub fn plugin(app: &mut App) {
                     .chain()
                     .in_set(Sim::Spawn),
                 navigate.in_set(Sim::Movement),
-                (
-                    dock,
-                    fire_torpedoes,
-                    fire_deck_gun,
-                    collide_with_ships,
-                    shelled,
-                )
-                    .in_set(Sim::Targeting),
+                (dock, fire_torpedoes, fire_deck_gun, collide_with_ships).in_set(Sim::Targeting),
             ),
         )
         .add_observer(on_boat_lost);
@@ -156,6 +150,42 @@ impl Station {
     /// Within a tile of the bunker.
     pub fn is_docked(&self, path: &RiverPath) -> bool {
         self.along >= path.length() - TILE_SIZE
+    }
+}
+
+/// Fire was asked for with every tube empty.
+#[derive(Message)]
+pub struct DryFire;
+
+/// Where a torpedo fired now would run: from the boat along the river axis the bow points
+/// to, until the straight ends or the torpedo's run does.
+pub struct Lane {
+    pub from: Vec2,
+    pub axis: Vec2,
+    pub length: f32,
+    /// The bow lies close enough to the axis to fire.
+    pub aligned: bool,
+}
+
+impl Lane {
+    pub fn new(path: &RiverPath, from: Vec2, station: &Station, heading: &Heading) -> Self {
+        let tangent = path.tangent_at(station.along);
+        let downstream = heading.0.dot(tangent) >= 0.0;
+        let axis = if downstream { tangent } else { -tangent };
+        let end = path.point_at(path.straight_end(station.along, downstream));
+        Self {
+            from,
+            axis,
+            length: from.distance(end).min(TORPEDO_RUN),
+            aligned: heading.0.angle_to(axis).abs() <= UBOAT_FIRE_ALIGNMENT,
+        }
+    }
+
+    /// `p` is on the water ahead, within the lane.
+    pub fn contains(&self, p: Vec2) -> bool {
+        let d = p - self.from;
+        let ahead = d.dot(self.axis);
+        ahead > 0.0 && ahead <= self.length && d.perp_dot(self.axis).abs() <= RIVER_HALF_WIDTH
     }
 }
 
@@ -411,6 +441,7 @@ fn fire_torpedoes(
     mut commands: Commands,
     mut intents: MessageReader<FireTorpedo>,
     mut hints: MessageWriter<Hint>,
+    mut dry: MessageWriter<DryFire>,
     mut fired: MessageWriter<Fired>,
     mut boats: Query<
         (
@@ -438,16 +469,12 @@ fn fire_torpedoes(
                 key: HintKey::EmptyTubes,
                 at,
             });
+            dry.write(DryFire);
             continue;
         }
 
-        let tangent = path.tangent_at(station.along);
-        let axis = if heading.0.dot(tangent) >= 0.0 {
-            tangent
-        } else {
-            -tangent
-        };
-        if heading.0.angle_to(axis).abs() > UBOAT_FIRE_ALIGNMENT {
+        let Lane { axis, aligned, .. } = Lane::new(&path, at, station, heading);
+        if !aligned {
             hints.write(Hint {
                 key: HintKey::BowNotAligned,
                 at,
@@ -564,28 +591,65 @@ fn collide_with_ships(
     }
 }
 
-/// Two destroyer hits without diving earn the dive hint.
-fn shelled(
-    mut hints: MessageWriter<Hint>,
-    mut hits: Local<u32>,
-    boats: Query<(&Transform, &LastHitBy, &Trim), (With<UBoat>, Changed<LastHitBy>)>,
-) {
-    for (transform, last, trim) in &boats {
-        if last.0 != Weapon::Enemy || !matches!(trim, Trim::Surfaced) {
-            continue;
-        }
-        *hits += 1;
-        if *hits >= 2 {
-            hints.write(Hint {
-                key: HintKey::Dive,
-                at: transform.translation.truncate(),
-            });
-        }
-    }
-}
-
 fn on_boat_lost(sunk: On<Sunk>, boats: Query<(), With<UBoat>>, mut flotilla: ResMut<Flotilla>) {
     if boats.get(sunk.entity).is_ok() {
         flotilla.at_sea = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn straight() -> RiverPath {
+        RiverPath::new(vec![Vec2::ZERO, Vec2::new(1000.0, 0.0)])
+    }
+
+    fn at(along: f32) -> Station {
+        Station { along, goal: along }
+    }
+
+    #[test]
+    fn the_lane_runs_ahead_of_the_bow_on_the_water() {
+        let lane = Lane::new(
+            &straight(),
+            Vec2::new(100.0, 0.0),
+            &at(100.0),
+            &Heading(Vec2::X),
+        );
+        assert!(lane.aligned);
+        assert_eq!(lane.length, TORPEDO_RUN);
+        assert!(lane.contains(Vec2::new(300.0, 10.0)));
+        assert!(!lane.contains(Vec2::new(50.0, 0.0)), "behind the boat");
+        assert!(!lane.contains(Vec2::new(300.0, 100.0)), "on the bank");
+        assert!(
+            !lane.contains(Vec2::new(100.0 + TORPEDO_RUN + 10.0, 0.0)),
+            "beyond the run"
+        );
+    }
+
+    #[test]
+    fn the_lane_ends_with_the_straight_and_turns_with_the_bow() {
+        let lane = Lane::new(
+            &straight(),
+            Vec2::new(900.0, 0.0),
+            &at(900.0),
+            &Heading(Vec2::X),
+        );
+        assert!((lane.length - 100.0).abs() < 0.01);
+        let back = Lane::new(
+            &straight(),
+            Vec2::new(900.0, 0.0),
+            &at(900.0),
+            &Heading(-Vec2::X),
+        );
+        assert!(back.contains(Vec2::new(700.0, 0.0)));
+        let askew = Lane::new(
+            &straight(),
+            Vec2::new(100.0, 0.0),
+            &at(100.0),
+            &Heading(Vec2::from_angle(0.5)),
+        );
+        assert!(!askew.aligned);
     }
 }

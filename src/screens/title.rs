@@ -1,70 +1,51 @@
-//! Title screen: controls card, Space starts a run.
+//! The main menu over the painted map: play, settings, quit.
 
-use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
-use super::{line, overlay_root, Screen};
+use super::widget::{button, card, heading, veil, Size};
+use super::{Menu, Screen};
+use crate::game::art::Art;
 
 pub(super) fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(Screen::Title), spawn_title)
-        .add_systems(
-            Update,
-            start_run.run_if(in_state(Screen::Title).and_then(input_just_pressed(KeyCode::Space))),
-        );
+    app.add_systems(OnEnter(Screen::Title), open)
+        .add_systems(OnEnter(Menu::Main), spawn);
 }
 
-fn spawn_title(mut commands: Commands) {
-    commands.spawn((
-        Name::new("Title UI"),
-        DespawnOnExit(Screen::Title),
-        overlay_root(),
-        children![
-            line("FLUSSBUNKER", 52.0, [0.90, 0.86, 0.70]),
-            line(
-                "Halte den Fluss. U-96 gehört dir - verliere sie nicht.",
-                20.0,
-                [0.72, 0.76, 0.80]
-            ),
-            line(
-                "Linksklick auf einen Bauplatz: Radialmenü (bauen, ausbauen, verkaufen)",
-                18.0,
-                [0.66, 0.70, 0.74]
-            ),
-            line(
-                "Linksklick auf den Fluss: U-96 fährt dorthin",
-                18.0,
-                [0.66, 0.70, 0.74]
-            ),
-            line(
-                "Rechtsklick  tauchen / auftauchen     Space  Torpedo (halten: Salve)     Klick aufs Boot am Bunker: Werft",
-                18.0,
-                [0.66, 0.70, 0.74]
-            ),
-            line(
-                "Enter  nächste Welle     F  doppeltes Tempo     Tab  taktische Karte     Esc  Pause",
-                18.0,
-                [0.66, 0.70, 0.74]
-            ),
-            line(
-                "Torpedos laufen GERADEAUS den Fluss entlang.",
-                19.0,
-                [0.60, 0.88, 1.00]
-            ),
-            line(
-                "Lange Geraden sind Schusslinien. Kurven sind totes Wasser.",
-                19.0,
-                [0.60, 0.88, 1.00]
-            ),
-            line(
-                "Zerstörer sind gepanzert und schießen sich auf dich ein. Dann: tauchen.",
-                19.0,
-                [0.82, 0.55, 0.50]
-            ),
-            line("[ SPACE ]", 30.0, [0.92, 0.88, 0.60]),
-        ],
-    ));
+fn open(mut menu: ResMut<NextState<Menu>>) {
+    menu.set(Menu::Main);
 }
 
-fn start_run(mut next: ResMut<NextState<Screen>>) {
-    next.set(Screen::Gameplay);
+fn spawn(mut commands: Commands, art: Res<Art>) {
+    let root = veil(&mut commands, "Main menu", DespawnOnExit(Menu::Main));
+    heading(&mut commands, root, "Flussbunker", 72.0);
+    let card = card(&mut commands, &art, root);
+    button(&mut commands, &art, card, "Spielen", Size::Big, play);
+    button(
+        &mut commands,
+        &art,
+        card,
+        "Einstellungen",
+        Size::Normal,
+        |_: On<Pointer<Click>>, mut menu: ResMut<NextState<Menu>>| menu.set(Menu::Settings),
+    );
+    #[cfg(not(target_arch = "wasm32"))]
+    button(
+        &mut commands,
+        &art,
+        card,
+        "Beenden",
+        Size::Normal,
+        |_: On<Pointer<Click>>, mut exit: MessageWriter<AppExit>| {
+            exit.write(AppExit::Success);
+        },
+    );
+}
+
+fn play(
+    _: On<Pointer<Click>>,
+    mut screen: ResMut<NextState<Screen>>,
+    mut menu: ResMut<NextState<Menu>>,
+) {
+    screen.set(Screen::Gameplay);
+    menu.set(Menu::None);
 }

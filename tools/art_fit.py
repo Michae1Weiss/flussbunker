@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Turn hand-drawn sheets into the files the game loads (docs/ART.md).
 
-  art_fit.py sheet OUT [--set fx]    guide sheet: one cell per sprite, one scale, line-weight legend
-  art_fit.py slice SHEET [--set fx]  cut the drawn sheet by the same cells, add the sticker, write assets/
+  art_fit.py sheet OUT [--set fx|hints]    guide sheet: one cell per sprite, one scale, line-weight legend
+  art_fit.py slice SHEET [--set fx|hints]  cut the drawn sheet by the same cells, add the sticker, write assets/
   art_fit.py map-template OUT   river band, build spots, bunker on a tile grid: draw the map over it
   art_fit.py map-mask OUT       the exact water as white on transparent, for a clipping mask
   art_fit.py map DRAWN          the finished map into assets/map/background.png
@@ -104,19 +104,32 @@ FX = {
     "ui/stroke.png": (96, 8),
 }
 
-SETS = {"sprites": SPRITES, "fx": FX}
-SIZES = {**SPRITES, **FX}
+# The third sheet: onboarding pictures in two frames each, and the mouse cursors.
+CURSORS = ("pencil", "steer", "build", "hand")
+HINTS = {
+    **{f"ui/hints/mouse_{i}.png": (32, 40) for i in range(2)},
+    **{f"ui/hints/space_{i}.png": (72, 24) for i in range(2)},
+    **{f"ui/cursors/{name}.png": (12, 12) for name in CURSORS},
+}
+# Cursors are screen pixels, not world units: 48 px, whatever the window.
+CURSOR_SCALE = 4
+
+SETS = {"sprites": SPRITES, "fx": FX, "hints": HINTS}
+SIZES = {**SPRITES, **FX, **HINTS}
 
 # Drawn on the paper, under the water, or as ink on a note: no cutout edge, no shadow.
 FLAT = {"sprites/crater.png", "sprites/splash.png", "sprites/spot.png",
         "sprites/shell.png", "sprites/torpedo.png", "ui/stroke.png",
-        *(k for k in FX if k.startswith(("fx/", "ui/icons/")))}
+        *(k for k in FX if k.startswith(("fx/", "ui/icons/"))),
+        *(k for k in HINTS if k.startswith("ui/cursors/"))}
 # Stretched by the game: corners stay, edges repeat along one axis, the middle fills.
 NINE_SLICE = {"ui/note.png", "ui/tag.png", "ui/banner.png"}
 NINE_SLICE_BORDER = 0.25
 
 
 def export_scale(key):
+    if key.startswith("ui/cursors/"):
+        return CURSOR_SCALE
     return UI_SCALE if key.startswith("ui/") else SCALE
 
 
@@ -229,6 +242,10 @@ def sheet(out, name):
         legend += ["-draw", f"text {SHEET_GAP},{ly + 250} 'Barrels: from the centre (the pivot) upward; the faint base is only a guide.'",
                    "-draw", f"text {SHEET_GAP},{ly + 330} 'note, tag, banner: the thin lines are 9-slice cuts. Corners stay, edges stretch: keep edges even and the middle plain.'",
                    "-draw", f"text {SHEET_GAP},{ly + 410} 'stroke: one pencil line along the middle, left and right ends must join seamlessly.'"]
+    if name == "hints":
+        legend += ["-draw", f"text {SHEET_GAP},{ly + 250} 'mouse, space: two frames of one drawing. Trace frame 0 for frame 1; only the pressed part changes. No lettering.'",
+                   "-draw", f"text {SHEET_GAP},{ly + 330} 'mouse_1: the left button filled red, two or three short click strokes. space_1: the cap pressed down, its side thinner.'",
+                   "-draw", f"text {SHEET_GAP},{ly + 410} 'cursors: ink with a thin white outline, no paper. Click point: pencil tip, hammer head, fingertip top left; steer mark in the centre.'"]
     magick("-size", f"{w}x{h}", "xc:white", *underlays(cells), *frame, *inner, *labels, *legend, out)
     print(f"{out}  {w}x{h}, {DRAW_SCALE} px per world unit")
 

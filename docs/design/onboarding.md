@@ -2,36 +2,41 @@
 
 ## Principles
 
-- On by default, skippable at any time, choice remembered. Turning it off removes only the notes;
-  nothing else changes.
-- No modal, no tutorial screen. Every hint is a one-line pencil note at the place of action. It
-  appears once and disappears after the first correct action.
+- Show, don't tell: nobody reads in games. A drawing of the action at the place of action beats
+  any sentence; words only where no picture says it, two or three at most.
+- On by default, switched off under Einstellungen → Hinweise. Off removes the pictures, the
+  pulsing spots and the notes; nothing else changes.
+- No modal, no tutorial screen, no instructions in the main menu. A hint stays until the first
+  correct action and never comes back that run.
 - **Reactive hints** are preferred: shown only after the mistake happened, so they are never early.
 - The player decides. Hints mark options, never the one correct choice.
-- Ramming and targeting modes are never taught. They are discovery.
+- Diving, ramming and targeting modes are never taught. They are discovery.
 
 ## Script
 
-| Wave | Teaches | Note | Success |
+| When | Teaches | Shown | Gone when |
 |---|---|---|---|
-| prologue | move, fire | arrow at the boat: "click the river"; after 20 s without a shot: "Space: torpedo" | gold transport sunk |
-| 1 | build | **all** build spots pulse once: "click: build an emplacement" | first flak built |
-| 3 | preview, upgrade | at the note: "radio: next wave"; once, at a turret: "click: upgrade" | one upgrade bought |
-| first destroyer | dive | no script. The destroyer ranges in for ~3 s (splashes, no damage), then hits. Reactive note only after two real hits without diving: "right-click: dive" | first dive under fire |
+| prologue, from 1 s | move | an animated mouse (two frames, left button clicking red) on the water six tiles upstream of the boat | the boat is first sent anywhere |
+| a target in the torpedo lane, bow aligned, a tube loaded | fire | an animated Space key (two frames, pressed and up) beside the boat, "Torpedo!" under it | the first torpedo of the run |
+| wave 1 prep | build | every build spot pulses; the cursor turns into a hammer over a spot | the first turret stands |
+| wave 3 prep | upgrade | once, at a turret: "Ausbauen?" | shown once |
+
+Until the drawings exist (`ART.md`, sheet `hints`), "Klick" and "Leertaste" stand in on paper tags.
 
 ## Reactive hints
 
 | Trigger | Note |
 |---|---|
-| torpedo hits the bank at a bend | "Torpedoes run straight. Bends are dead water." |
-| Space with empty tubes | "Tubes empty. Resupply at the bunker." |
-| Space while the bow is turning | "Bow not aligned." |
-| surfacing refused under a heavy ship | "Contact above." |
-| shells bounce off a destroyer (armour floor) | "Armoured. Torpedoes." |
-| two destroyer hits without diving | "Right-click: dive." |
+| torpedo hits the bank at a bend | "Nur geradeaus!" |
+| Space with empty tubes | "Rohre leer: zum Bunker" |
+| Space while the bow is turning | "Bug ausrichten" |
+| surfacing refused under a heavy ship | "Kontakt über uns!" |
 
 ## Rejected
 
 A scripted destroyer that stops at the end of a straight and must be passed submerged and shot from
 behind: breaks "ships never stop", allows one solution only, and teaches a move the real head-on
 dance never uses.
+
+A dive hint after two destroyer hits (M9): playtests showed diving is not needed to learn the game,
+and the hint pushed a move the player never used. Diving stays as a mechanic to discover.

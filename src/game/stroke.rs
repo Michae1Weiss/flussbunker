@@ -1,7 +1,8 @@
 //! Hand-drawn lines. Every circle, arc and line the game draws on the map (ranges, radial
 //! rings, hover, torpedo lane, route, bars, progress) is a band textured with the pencil
-//! stroke `ui/stroke.png`, the same width at any radius. Systems queue shapes each frame;
-//! one mesh is rebuilt from them. Without the drawing a soft ink band stands in.
+//! stroke `ui/stroke.png`, the same width at any radius. The drawing gives the shape, the
+//! palette the colour: it is whitened on load, so red strokes are red. Systems queue shapes
+//! each frame; one mesh is rebuilt from them. Without the drawing a soft ink band stands in.
 //! Sole writer of `Strokes` and of the canvas mesh.
 
 use bevy::asset::RenderAssetUsages;
@@ -18,11 +19,13 @@ use crate::game::art::exists;
 pub fn plugin(app: &mut App) {
     app.init_resource::<Strokes>()
         .add_systems(Startup, spawn_canvas)
+        .add_systems(Update, whiten)
         .add_systems(PostUpdate, build);
 }
 
-/// World units across a stroke band. The drawing's line sits in its middle.
-const WIDTH: f32 = 3.0;
+/// World units across a stroke band: the stroke texture's own height, so the pencil line in
+/// its middle keeps the thickness it was drawn with. The one knob for heavier or lighter lines.
+const WIDTH: f32 = 8.0;
 /// The stroke texture is 96 x 8 world units; its length repeats every this many widths.
 const REPEAT: f32 = 12.0;
 /// Above map labels and radial discs, below nothing but the screen-space UI.
@@ -131,13 +134,43 @@ pub fn band(points: &[Vec2], closed: bool, width: f32) -> (Vec<Vec2>, Vec<Vec2>)
 #[derive(Component)]
 struct Canvas(Handle<Mesh>);
 
-/// A soft vertical ink profile: the stand-in for the drawn stroke.
+/// The stroke texture, whitened once loaded.
+#[derive(Resource)]
+struct Pencil(Handle<Image>);
+
+/// Keeps only the drawing's alpha; vertex colours tint white to any palette colour.
+fn whiten(
+    mut events: MessageReader<AssetEvent<Image>>,
+    pencil: Res<Pencil>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    for event in events.read() {
+        if !event.is_loaded_with_dependencies(&pencil.0) {
+            continue;
+        }
+        let Some(mut image) = images.get_mut(&pencil.0) else {
+            continue;
+        };
+        if image.texture_descriptor.format != TextureFormat::Rgba8UnormSrgb {
+            warn!("ui/stroke.png is not 8-bit RGBA; strokes keep the drawing's colour");
+            continue;
+        }
+        if let Some(data) = image.data.as_mut() {
+            for pixel in data.chunks_exact_mut(4) {
+                pixel[..3].fill(255);
+            }
+        }
+    }
+}
+
+/// A soft vertical ink profile: the stand-in for the drawn stroke, inked across the middle
+/// quarter like the drawing.
 fn soft_band() -> Image {
-    const HEIGHT: u32 = 16;
+    const HEIGHT: u32 = 32;
     let data = (0..HEIGHT)
         .flat_map(|y| {
             let v = (y as f32 + 0.5) / HEIGHT as f32;
-            let alpha = ((1.0 - (v - 0.5).abs() * 2.0) * 2.5).clamp(0.0, 1.0);
+            let alpha = ((0.18 - (v - 0.5).abs()) / 0.08).clamp(0.0, 1.0);
             [255, 255, 255, (alpha * 255.0) as u8]
         })
         .collect();
@@ -174,6 +207,7 @@ fn spawn_canvas(
     } else {
         images.add(soft_band())
     };
+    commands.insert_resource(Pencil(texture.clone()));
     let mesh = meshes.add(Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),

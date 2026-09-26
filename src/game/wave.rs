@@ -2,13 +2,12 @@
 //! when the river is empty; victory after the last. Also the 1x/2x pace. Sole writer of
 //! `WaveState` and of the virtual time speed; writes `WaveFinished`.
 
-use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
 use crate::balance::{EnemyKind, WAVES, WAVE_CLEAR_BONUS};
 use crate::game::economy::Treasury;
 use crate::game::enemy::{enemy_bundle, shelling_bundle, Cruising, Enemy};
-use crate::game::input::{TogglePause, ToggleSpeed};
+use crate::game::input::{StartWave, ToggleSpeed};
 use crate::game::map::RiverPath;
 use crate::game_plugin::Sim;
 use crate::screens::Screen;
@@ -21,12 +20,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(Screen::Gameplay), normal_pace)
         .add_systems(
             Update,
-            (
-                start_wave.run_if(
-                    in_state(Screen::Gameplay).and_then(input_just_pressed(KeyCode::Enter)),
-                ),
-                (toggle_pace, toggle_pause).run_if(in_state(Screen::Gameplay)),
-            ),
+            (start_wave, toggle_pace).run_if(in_state(Screen::Gameplay)),
         )
         .add_systems(
             FixedUpdate,
@@ -72,18 +66,15 @@ impl Default for WaveState {
 }
 
 impl WaveState {
+    /// "Prolog", then "Welle 5/12".
     pub fn label(&self) -> String {
         if self.prologue {
-            return "Prolog: Goldtransport".to_string();
-        }
-        if self.index >= WAVES.len() {
-            return "-".to_string();
+            return "Prolog".to_string();
         }
         format!(
-            "{}/{} {}",
-            self.index + 1,
-            WAVES.len(),
-            WAVES[self.index].name
+            "Welle {}/{}",
+            (self.index + 1).min(WAVES.len()),
+            WAVES.len()
         )
     }
 
@@ -112,16 +103,6 @@ fn normal_pace(mut time: ResMut<Time<Virtual>>) {
     time.unpause();
 }
 
-fn toggle_pause(mut intents: MessageReader<TogglePause>, mut time: ResMut<Time<Virtual>>) {
-    for _ in intents.read() {
-        if time.is_paused() {
-            time.unpause();
-        } else {
-            time.pause();
-        }
-    }
-}
-
 fn spawn_prologue(mut commands: Commands, path: Res<RiverPath>) {
     commands.spawn((
         enemy_bundle(EnemyKind::GoldTransport, path.spawn_point()),
@@ -142,11 +123,12 @@ fn toggle_pace(mut intents: MessageReader<ToggleSpeed>, mut time: ResMut<Time<Vi
 }
 
 fn start_wave(
+    mut intents: MessageReader<StartWave>,
     mut wave: ResMut<WaveState>,
     mut time: ResMut<Time<Virtual>>,
     mut started: MessageWriter<WaveStarted>,
 ) {
-    if wave.prologue || wave.running || wave.index >= WAVES.len() {
+    if intents.read().count() == 0 || wave.prologue || wave.running || wave.index >= WAVES.len() {
         return;
     }
     started.write(WaveStarted { index: wave.index });

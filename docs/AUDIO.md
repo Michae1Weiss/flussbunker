@@ -110,6 +110,9 @@ the level up. Record five or six takes and keep the best three.
 
 | File | Plays when | Length | Variants | Level | Pitch | Character, how to get it |
 |---|---|---|---|---|---|---|
+| `sfx/torpedo_load` | one torpedo goes into a tube while docked, every 1.6 s until full | 0.4-0.8 s | 2 | -14 dB | ±5 % | a heavy cylinder sliding home, a hatch clunk. Until recorded, `built` stands in |
+| `sfx/empty_tubes` | Space with every tube empty; at most every 0.4 s while held | 0.2-0.4 s | 1 | -12 dB | none | a dry mechanical click of a firing lever, nothing happens. Until recorded, `too_expensive` stands in |
+| `sfx/engine` | loop, while the boat moves or turns; silent while paused | 2-4 s, loop | 1 | -20 dB | none | a calm diesel chug with water along the hull. Low, so it can run for minutes without tiring |
 | `sfx/dive` | the boat starts to dive | 1.5-2.5 s | 1 | -8 dB | none | a short dive klaxon, then air venting and bubbles. Blowing through a straw into a glass of water |
 | `sfx/surface` | the boat starts to surface | 1.5-2.0 s | 1 | -10 dB | none | ballast blowing, water rushing off |
 | `sfx/boat_hit` | the boat takes damage | 0.3-0.6 s | 2 | -8 dB | ±6 % | a hollow metal clang, clearly different from `hit` (that one is the enemy's) |
@@ -131,12 +134,12 @@ the level up. Record five or six takes and keep the best three.
 
 | File | Plays when | Length | Variants | Level | Pitch | Character, how to get it |
 |---|---|---|---|---|---|---|
-| `sfx/ui_hover` | the cursor enters a radial-menu entry | 0.03-0.08 s | 3 | -22 dB | ±10 % | a pencil tapped on paper |
-| `sfx/ui_click` | a radial-menu entry is chosen | 0.05-0.15 s | 2 | -16 dB | ±6 % | a rubber stamp on paper |
+| `sfx/ui_hover` | the cursor finds something to click: a menu button, a radial-menu entry, the water, a build spot, a turret, the docked boat | 0.03-0.08 s | 3 | -22 dB | ±10 % | a pencil tapped on paper |
+| `sfx/ui_click` | a button or radial-menu entry is pressed, or the boat is sent across the water | 0.05-0.15 s | 2 | -16 dB | ±6 % | a rubber stamp on paper |
 | `sfx/menu_open` | the radial menu opens | 0.15-0.3 s | 2 | -18 dB | ±6 % | paper sliding across a table |
 | `sfx/menu_close` | the radial menu closes | 0.1-0.2 s | 1 | -20 dB | ±6 % | a shorter slide |
 | `sfx/overlay` | the Tab map is opened or closed | 0.3-0.5 s | 1 | -16 dB | ±4 % | a map being unfolded |
-| `sfx/pause` | pause on or off | 0.3 s | 1 | -14 dB | none | a page turned |
+| `sfx/pause` | the pause menu opens | 0.3 s | 1 | -14 dB | none | a page turned |
 
 ## Phase banners
 
@@ -164,6 +167,8 @@ free to use anyway. Newly written music "in the style of" old newsreels is fine.
 
 ## In the game
 
-Mute and unmute with `M`. Sounds that fire often (Flak, `hit`, `coin`) are limited to a few at
-the same time and spaced out a little, so twenty turrets do not turn into noise. In the web
+Music and sound volume are set in the settings menu (10 steps each); `M` mutes and unmutes
+everything. Every event plays its sound; each copy of a sound already playing makes the next one
+2 dB quieter, so twenty turrets or a chain of explosions swell instead of clipping. A sound not
+yet recorded plays a stand-in (`burn` as `explode_small`, `torpedo_load` as `built`, `empty_tubes` as `too_expensive`). In the web
 build the browser allows sound only after the first click or key press; that is expected.

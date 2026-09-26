@@ -8,6 +8,7 @@ pub mod audio;
 pub mod banner;
 pub mod bunker;
 pub mod combat;
+pub mod cursor;
 pub mod destruction;
 pub mod economy;
 pub mod enemy;
@@ -17,6 +18,7 @@ pub mod input;
 pub mod juice;
 pub mod map;
 pub mod notes;
+pub mod pace;
 pub mod palette;
 pub mod projectile;
 pub mod radial;
@@ -51,5 +53,7 @@ pub fn plugin(app: &mut App) {
         telemetry::plugin,
         input::plugin,
         hud::plugin,
+        pace::plugin,
+        cursor::plugin,
     ));
 }

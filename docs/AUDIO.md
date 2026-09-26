@@ -10,27 +10,53 @@ exaggerated, never gory, no screams, no voices.
 
 ## Where the files go
 
-`sfx/flak_shot` in the tables means `assets/audio/sfx/flak_shot.ogg`, or the variants
-`assets/audio/sfx/flak_shot_1.ogg`, `_2.ogg` ... (up to 8). Music goes to
-`assets/audio/music/build.ogg` and `wave.ogg`. After adding files, run
-`python3 tools/art_fit.py check`: the web build only knows files that are in the manifest.
-`cargo run` logs how many sounds it found (`audio: 12 of 41 sounds, music: 2`).
+Sources live in `sound/takes/`, the game's files in `assets/audio/`, and `tools/sound.sh` turns
+one into the other. Never edit or drop files into `assets/audio/` by hand: the next run replaces
+them.
+
+`sfx/flak_shot` in the tables means the source `sound/takes/sfx/flak_shot.flac` (`.wav` and
+`.ogg` work too) and becomes `assets/audio/sfx/flak_shot.ogg`, or the variants
+`flak_shot_1.ogg`, `_2.ogg` ... (up to 8) when the source holds several takes. Music sources are
+`sound/takes/music/build.flac` and `wave.flac`. `sound/suno/` keeps generated originals untouched,
+`sound/old/` what was replaced. `cargo run` logs how many sounds it found
+(`audio: 12 of 41 sounds, music: 2`).
+
+## Workflow
+
+1. **One Audacity project per family** (weapons, explosions, ui, boat, music), kept outside the
+   repo in `~/Documents/Audacity4/Projects/`.
+2. **One track per sound, named like it** (`flak_shot`). Record every take onto that track, at
+   least **1 s of silence** between takes and less than 1 s of silence inside a take. Delete the
+   bad takes; a rough cut is enough. Noise Reduction, pitch, layering and the loop point of a loop
+   are done here.
+3. **Export the track:** select it, Export, *Selected audio*, FLAC, to `sound/takes/sfx/`. Only
+   the tracks that changed.
+4. **`tools/sound.sh`** (needs `brew install sox` and ffmpeg). It splits each source into its
+   takes, cuts the silence before and after, normalises, fades, and writes mono 48 kHz OGG; loops
+   and music are only levelled and encoded. It lists every file with its length and warns about
+   names the game does not know, sounds longer than 4 s and more than 8 takes. It also rebuilds
+   `assets/manifest.txt`, which the web build needs. A noisy recording splits badly: run
+   `THRESHOLD=-40 tools/sound.sh` (the default is -48 dB below the loudest take).
+
+Record at 48 kHz with the loudest peaks around -12 to -6 dB, never in the red; the script brings
+the level up. Record five or six takes and keep the best three.
 
 ## Rules for every file
 
-1. **Format:** OGG Vorbis, quality 5 to 6, 48 kHz (44.1 is fine). Effects **mono**, music
-   **stereo**.
-2. **Level:** normalise every file to a **peak of -1 dBFS**. Do not make quiet sounds quiet in
-   the file; the game sets each sound's loudness from the "Level" column. You only deliver
-   clean, full-level files.
-3. **Start:** cut the silence before the sound; the first transient within 5 ms. A late start
-   feels like input lag.
-4. **End:** let the tail ring out to silence; a 10 to 30 ms fade at the very end, never a cut.
-5. **Loops** (marked "loop"): the end must flow into the start without a click; cut on zero
-   crossings, test by looping in Audacity.
-6. **Variants:** where the table asks for several, record several takes; name them
-   `name_1.ogg`, `name_2.ogg` ... The game picks one at random and also shifts the pitch a little
-   ("Pitch" column), so 3 takes sound like 20.
+1. **Format:** OGG Vorbis, quality 5, 48 kHz. Effects **mono**, music **stereo**. Done by
+   `tools/sound.sh`.
+2. **Level:** every file at a **peak of -1 dBFS**. Do not make quiet sounds quiet in the file;
+   the game sets each sound's loudness from the "Level" column. Done by `tools/sound.sh`.
+3. **Start:** no silence before the sound; a late start feels like input lag. Done by
+   `tools/sound.sh`.
+4. **End:** let the tail ring out; the script cuts the silence after it and fades the last 20 ms.
+5. **Loops** (marked "loop"): the end must flow into the start without a click. Keep only the
+   steady part, split it in the middle, swap the halves and crossfade the seam; test with loop
+   playback in Audacity. No fade at either end. The script leaves loops uncut; add a new one to
+   `LOOPS` in `tools/sound.sh`.
+6. **Variants:** where the table asks for several, record several takes on the one track; the
+   script names them `name_1.ogg`, `name_2.ogg` ... The game picks one at random and also shifts
+   the pitch a little ("Pitch" column), so 3 takes sound like 20.
 7. **Nothing from films, games or music** you do not have the rights to. Every file you did not
    record yourself gets a line in `assets/audio/CREDITS.md`: file, source URL, author, licence.
 
@@ -43,8 +69,13 @@ exaggerated, never gory, no screams, no voices.
 - **Kenney.nl** audio packs (CC0): "Impact Sounds", "Interface Sounds", "UI Audio".
 - **Sonniss GDC Game Audio Bundle** (free yearly bundles, royalty-free in games, no credit
   needed; the licence forbids sharing the raw files outside the game, which a game does not do).
-- **Audacity** (free) for trimming, normalising, fading, pitch shift and low-pass (for distance).
-  Layering two sounds (a low boom plus a crackle) is how most game explosions are made.
+- **Suno** for music. Songs made on the free plan are for non-commercial use only, and a later
+  subscription does not cover them; generate the final tracks under Pro or Premier and note the
+  plan and date in `CREDITS.md`. `build` and `wave` must share key and tempo, which two separate
+  generations rarely do: use stems or extend one song. Keep the download in `sound/suno/` and
+  edit the loop in Audacity.
+- **Audacity** for pitch shift, low-pass (for distance) and layering: two sounds on two tracks (a
+  low boom plus a crackle) is how most game explosions are made.
 
 ## Weapons
 

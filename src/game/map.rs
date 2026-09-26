@@ -39,14 +39,14 @@ const CENTRELINE_TILES: &[(f32, f32)] = &[
 /// Tile coordinates like `CENTRELINE_TILES`. Mostly at bends, where turrets matter and
 /// torpedoes do not; deliberately too few to cover everything.
 const BUILD_SPOT_TILES: &[(f32, f32)] = &[
-    (7.5, 5.5),
-    (13.0, 4.5),
-    (14.0, 10.5),
-    (20.5, 5.5),
-    (25.5, 10.5),
-    (20.5, 14.5),
-    (25.5, 15.5),
-    (30.5, 14.5),
+    (7.0, 5.0),
+    (12.5, 5.0),
+    (14.0, 10.0),
+    (20.5, 6.0),
+    (25.0, 11.0),
+    (21.0, 11.0),
+    (26.0, 15.0),
+    (30.0, 14.5),
 ];
 
 /// Greybox water; hidden when a painted map exists (`art`).
@@ -232,7 +232,7 @@ fn draw_build_spots(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::balance::TORPEDO_RUN;
+    use crate::balance::{TowerKind, TORPEDO_RUN};
 
     fn map() -> RiverPath {
         let points = CENTRELINE_TILES
@@ -243,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn build_spots_are_on_land_within_reach_of_the_river() {
+    fn build_spots_are_on_land() {
         let river = map();
         for &(x, y) in BUILD_SPOT_TILES {
             let (_, distance) = river.project(tile_to_world(x, y));
@@ -251,10 +251,29 @@ mod tests {
                 distance > RIVER_HALF_WIDTH + BUILD_SPOT_RADIUS,
                 "spot ({x}, {y}) touches the water"
             );
-            assert!(
-                distance < 3.0 * TILE_SIZE,
-                "spot ({x}, {y}) is too far from the river"
-            );
+        }
+    }
+
+    #[test]
+    fn every_gun_covers_a_stretch_of_river_from_every_spot() {
+        let river = map();
+        let step = 0.1 * TILE_SIZE;
+        let samples = (river.length() / step) as usize;
+        for kind in TowerKind::ALL {
+            let range = kind.stats(0).range;
+            for &(x, y) in BUILD_SPOT_TILES {
+                let spot = tile_to_world(x, y);
+                let covered = (0..samples)
+                    .filter(|&i| river.point_at(i as f32 * step).distance(spot) <= range)
+                    .count() as f32
+                    * step;
+                assert!(
+                    covered >= 3.0 * TILE_SIZE,
+                    "{} at ({x}, {y}) covers only {:.1} tiles of river",
+                    kind.stats(0).name,
+                    covered / TILE_SIZE
+                );
+            }
         }
     }
 

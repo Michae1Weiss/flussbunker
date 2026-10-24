@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = "=0.19.1"
+bevy = { version = "=0.19.1", default-features = false, features = ["2d", "ui", "audio"] }
 
 [features]
 default = []
@@ -25,3 +25,11 @@ opt-level = 1
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Used by `bevy build --release web`: small over fast, the browser downloads it.
+[profile.web-release]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+strip = true
+panic = "abort"

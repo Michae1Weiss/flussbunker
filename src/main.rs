@@ -1,4 +1,4 @@
-use bevy::{prelude::*, window::WindowResolution};
+use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use flussbunker::GamePlugin;
 
 fn main() -> AppExit {
@@ -15,7 +15,12 @@ fn main() -> AppExit {
                     }),
                     ..default()
                 })
-                .set(ImagePlugin::default_linear()),
+                .set(ImagePlugin::default_linear())
+                // No `.meta` files ship; asking for each one is a 404 per asset on the web.
+                .set(AssetPlugin {
+                    meta_check: AssetMetaCheck::Never,
+                    ..default()
+                }),
         )
         .add_plugins(GamePlugin)
         .run()

@@ -138,8 +138,9 @@ def magick(*args):
     last = args[-1] if args else ""
     if last.endswith(".png"):
         os.makedirs(os.path.dirname(os.path.abspath(last)), exist_ok=True)
-        # Without timestamps a re-slice of the same drawing leaves git clean.
-        args = (*args[:-1], "-define", "png:exclude-chunks=date,time", last)
+        # Without timestamps a re-slice of the same drawing leaves git clean. 8 bits per
+        # channel: WebGL2 cannot sample 16-bit textures, and the web build would fail.
+        args = (*args[:-1], "-depth", "8", "-define", "png:exclude-chunks=date,time", last)
     result = subprocess.run(["magick", *args], capture_output=True, text=True)
     if result.returncode:
         sys.exit(f"magick failed: {result.stderr.strip()}")

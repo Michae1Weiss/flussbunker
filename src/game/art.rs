@@ -468,3 +468,23 @@ fn hide_river(art: Res<Art>, mut segments: Query<&mut Visibility, Added<RiverSeg
         *visibility = Visibility::Hidden;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn every_drawing_has_8_bit_channels_for_webgl() {
+        let mut pending = vec![std::path::PathBuf::from("assets")];
+        while let Some(dir) = pending.pop() {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    pending.push(path);
+                } else if path.extension().is_some_and(|e| e == "png") {
+                    let bytes = std::fs::read(&path).unwrap();
+                    // IHDR bit depth: signature (8) + chunk length and type (8) + width, height (8).
+                    assert_eq!(bytes[24], 8, "{} is not 8 bits per channel", path.display());
+                }
+            }
+        }
+    }
+}

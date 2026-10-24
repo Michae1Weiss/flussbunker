@@ -5,6 +5,9 @@ with shore batteries and personally command one U-boat against everything the gu
 
 Working title. Fictional setting, Kriegsmarine-era optics, cartoon tone. See `docs/VISION.md`.
 
+**Play in the browser: https://michae1weiss.github.io/flussbunker/** (mouse and keyboard; click
+the page once so it gets focus and sound)
+
 ## Status
 
 **Greybox, roadmap M5 done.** A full run is playable with coloured rectangles: prologue, twelve
@@ -17,15 +20,39 @@ cargo run --features dev     # + FPS log and schedule ambiguity warnings
 cargo test
 ```
 
-Web build (playtests by link): `cargo install trunk`, then `trunk serve` and open
-http://127.0.0.1:8080; `trunk build` writes a static `dist/` for itch.io. The `wasm32` target
-comes with the toolchain file. Art goes into `assets/` as listed in `docs/ART.md`; missing files
-stay rectangles.
+Art goes into `assets/` as listed in `docs/ART.md`; missing files stay rectangles.
 
 Controls: left-click a build spot or turret for the radial menu, left-click the river to move the
 boat, the docked boat for the shipyard. Right-click dives. Space fires (hold: salvo). Enter starts
 the next wave, F toggles 2x pace, Esc closes a menu. Feel harnesses: `cargo run --example boat`,
 `cargo run --example turrets`.
+
+## Build for web
+
+**Pre-requirement**: [bevy_cli](https://github.com/TheBevyFlock/bevy_cli); the `wasm32` target
+comes with the toolchain file.
+```bash
+bevy build --yes --release web --bundle
+# Test locally
+python3 -m http.server 8000 --directory target/bevy_web/web-release/flussbunker
+```
+
+The page is `web/index.html` (paper loading screen, audio unlock on first input). Textures must be
+8 bits per channel (WebGL2); `tools/art_fit.py` writes them so and a test guards it.
+
+## Deploy to GitHub Pages
+
+The site is served from the `gh-pages` branch (root, with a `.nojekyll` file).
+```bash
+# once: check out gh-pages next to this repo
+git worktree add ../flussbunker-gh-pages gh-pages
+# every deploy
+SRC=target/bevy_web/web-release/flussbunker
+DEST=../flussbunker-gh-pages
+( cd "$DEST" && find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .nojekyll -exec rm -rf {} + )
+cp -r "$SRC"/. "$DEST"/
+( cd "$DEST" && git add -A && git commit -m "ops: deploy web build" && git push )
+```
 
 ## Read in this order
 

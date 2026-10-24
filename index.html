@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f2eb" />
+    <title>Flussbunker</title>
+    <style>
+      :root {
+        --paper: #f5f2eb;
+        --ink: #29211a;
+        --pencil: rgba(41, 33, 26, 0.35);
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      canvas {
+        display: block;
+        outline: none;
+      }
+      #loading-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        font: 32px "Patrick Hand", "Comic Sans MS", cursive, sans-serif;
+      }
+      .spinner {
+        width: 56px;
+        height: 56px;
+        border: 4px solid var(--pencil);
+        border-top-color: var(--ink);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      .hint {
+        font-size: 18px;
+        opacity: 0.6;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>JavaScript is required to play Flussbunker.</noscript>
+    <div id="loading-screen">
+      <span>Flussbunker</span>
+      <span class="spinner"></span>
+      <span class="hint">Maus und Tastatur. Ton nach dem ersten Klick.</span>
+    </div>
+    <script type="module">
+      // Browsers start audio suspended; resume every AudioContext on the first user input.
+      // Must run before the game creates its context.
+      // https://developer.chrome.com/blog/web-audio-autoplay/#moving-forward
+      const contexts = [];
+      const events = ["click", "contextmenu", "auxclick", "mousedown", "mouseup", "pointerup", "touchend", "keydown", "keyup"];
+      self.AudioContext = new Proxy(self.AudioContext, {
+        construct(target, args) {
+          const context = new target(...args);
+          contexts.push(context);
+          return context;
+        },
+      });
+      function resume() {
+        let running = 0;
+        for (const context of contexts) {
+          if (context.state !== "running") context.resume();
+          else running++;
+        }
+        if (running === contexts.length) {
+          for (const name of events) document.removeEventListener(name, resume);
+        }
+      }
+      for (const name of events) document.addEventListener(name, resume);
+    </script>
+    <script type="module">
+      import init from "./build/flussbunker.js";
+      init().catch((error) => {
+        // wasm-bindgen ends the start function with this exception; it is not a failure.
+        if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) {
+          throw error;
+        }
+      });
+    </script>
+    <script type="module">
+      // The game has loaded once its canvas appears.
+      const loading = document.getElementById("loading-screen");
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node instanceof HTMLCanvasElement) {
+              loading.style.display = "none";
+              observer.disconnect();
+              return;
+            }
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true });
+    </script>
+  </body>
+</html>
